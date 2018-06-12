@@ -16,7 +16,10 @@ import qualified Data.Set.Mutable.Class                as MutableSet
 import Data.Graph.Component.Edge.Class (Edge, Edges, Source, Target)
 import Data.Graph.Component.Node.Class (Node, Nodes)
 import Data.Graph.Component.Node.Layer (Model, Type, Users)
-import Data.Graph.Fold.SubComponents   (SubComponents, subComponents)
+import Data.Graph.Fold.SubComponents   ( SubComponents
+                                       , subComponents
+                                       , SubComponents1
+                                       , subComponents1)
 
 
 -------------------------
@@ -25,23 +28,23 @@ import Data.Graph.Fold.SubComponents   (SubComponents, subComponents)
 
 -- === API === --
 
-type Delete layout m =
+type Delete m =
     ( MonadIO m
     , Edge.Delete m
     , Component.Destructor1 m Node
-    , SubComponents Edges m (Node layout)
+    , SubComponents1 Edges Nodes m
     )
 
-delete :: Delete layout m => Node layout -> m ()
+delete :: Delete m => Node layout -> m ()
 delete =  \node -> do
-    edges <- subComponents @Edges node
+    edges <- subComponents1 @Edges node
     ComponentList.mapM_ Edge.delete edges
     Component.destruct1 node
 {-# INLINE delete #-}
 
-deleteSubtreeWithWhitelist :: ∀ layout m.
+type DeleteSubtree m =
     ( MonadIO m
-    , Delete () m
+    , Delete m
     , Layer.Reader Node Users  m
     , Layer.Reader Node Model  m
     , Layer.Reader Node Type   m
@@ -49,7 +52,10 @@ deleteSubtreeWithWhitelist :: ∀ layout m.
     , Layer.Reader Edge Source m
     , SubComponents Edges m (Node.Uni ())
     , Layer.IsUnwrapped Node.Uni
-    ) => Set.Set Node.Some -> Node layout -> m ()
+    )
+
+deleteSubtreeWithWhitelist :: ∀ layout m. DeleteSubtree m
+                           => Set.Set Node.Some -> Node layout -> m ()
 deleteSubtreeWithWhitelist whitelist = go . Layout.relayout where
     go :: Node.Some -> m ()
     go root = do
@@ -65,3 +71,7 @@ deleteSubtreeWithWhitelist whitelist = go . Layout.relayout where
             delete root
             traverse_ go (tp : inputs)
 {-# INLINE deleteSubtreeWithWhitelist #-}
+
+deleteSubtree :: DeleteSubtree m => Node layout -> m ()
+deleteSubtree = deleteSubtreeWithWhitelist mempty
+{-# INLINE deleteSubtree #-}
