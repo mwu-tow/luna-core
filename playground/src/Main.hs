@@ -28,13 +28,17 @@ import qualified OCI.Pass.Definition.Interface       as Pass
 import qualified System.Environment                  as System
 import qualified Text.PrettyPrint.ANSI.Leijen        as Doc
 
-
 import Data.Map  (Map)
 import Data.Set  (Set)
 import Luna.Pass (Pass)
 
+import Data.Graph.Data.Component.Class (unsafeNull)
 
+import Luna.Syntax.Text.Parser.Data.CodeSpan (CodeSpan)
+import Luna.Syntax.Text.Parser.Data.Invalid (Invalids)
 
+import qualified Data.Graph.Data.Graph.Class          as Graph
+import Data.Graph.Component.Node.Destruction
 ----------------------
 -- === TestPass === --
 ----------------------
@@ -54,7 +58,7 @@ type family TestPassSpec t where
 newtype World = World (IR.Term IR.Unit)
 type instance Attr.Type World = Attr.Atomic
 instance Default World where
-    def = undefined
+    def = World unsafeNull
 
 instance Pass.Interface TestPass (Pass stage TestPass)
       => Pass.Definition stage TestPass where
@@ -76,18 +80,38 @@ testPass = do
     return ()
 
 
+data ShellCompiler
+
+type instance Graph.Components      ShellCompiler          = '[IR.Terms, IR.Links]
+type instance Graph.ComponentLayers ShellCompiler IR.Links = '[IR.Target, IR.Source]
+type instance Graph.ComponentLayers ShellCompiler IR.Terms
+   = '[IR.Users, IR.Model, IR.Type, CodeSpan]
+
 
 ---------------------
 -- === Testing === --
 ---------------------
 
 main :: IO ()
-main = Graph.encodeAndEval @Pass.Compilation $ Scheduler.evalT $ do
-    let lunafilePath = "/tmp/System.luna"
+main = Graph.encodeAndEval @ShellCompiler $ Scheduler.evalT $ do
+    let lunafilePath = "/Users/marcinkostrzewa/code/luna/stdlib/Std/src/System.luna"
     lunafile <- readFile lunafilePath
+
     Scheduler.registerAttr @World
     Scheduler.enableAttrByType @World
-    Scheduler.registerPass @Pass.Compilation @TestPass
+
+    Scheduler.registerAttr @Parser.Source
+    Scheduler.enableAttrByType @Parser.Source
+
+    Scheduler.registerAttr @Invalids
+    Scheduler.enableAttrByType @Invalids
+
+    Scheduler.registerAttr @Parser.Result
+    Scheduler.enableAttrByType @Parser.Result
+
+    Scheduler.registerPass @ShellCompiler @TestPass
+    Scheduler.registerPass @ShellCompiler @Parser.Parser
+
     Scheduler.setAttr @Parser.Source (convert lunafile)
     Scheduler.runPassByType @Parser.Parser
     Just r <- fmap unwrap <$> Scheduler.lookupAttr @Parser.Result
