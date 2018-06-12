@@ -1,6 +1,7 @@
 module Data.Graph.Component.Node.Destruction where
 
-import Prologue hiding (Type)
+import           Prologue hiding (Type)
+import qualified Prologue as P
 
 import qualified Data.Graph.Component.Edge.Destruction as Edge
 import qualified Data.Graph.Component.Node.Class       as Node
@@ -12,10 +13,10 @@ import qualified Data.Graph.Data.Layer.Layout          as Layout
 import qualified Data.Set                              as Set
 import qualified Data.Set.Mutable.Class                as MutableSet
 
-import Data.Graph.Fold.SubComponents         (SubComponents, subComponents)
-import Data.Graph.Component.Edge.Class       (Edge, Edges, Source, Target)
-import Data.Graph.Component.Node.Class       (Node, Nodes)
-import Data.Graph.Component.Node.Layer       (Users, Type, Model)
+import Data.Graph.Component.Edge.Class (Edge, Edges, Source, Target)
+import Data.Graph.Component.Node.Class (Node, Nodes)
+import Data.Graph.Component.Node.Layer (Model, Type, Users)
+import Data.Graph.Fold.SubComponents   (SubComponents, subComponents)
 
 
 -------------------------
@@ -32,18 +33,22 @@ type Delete layout m =
     )
 
 delete :: Delete layout m => Node layout -> m ()
-delete = \node -> do
+delete =  \node -> do
     edges <- subComponents @Edges node
     ComponentList.mapM_ Edge.delete edges
     Component.destruct1 node
 {-# INLINE delete #-}
 
-deleteSubtreeWithWhitelist ::
+deleteSubtreeWithWhitelist :: ∀ layout m.
     ( MonadIO m
-    , Delete layout m
-    , Layer.Reader Node Users m
-    , Layer.Reader Node Model m
-    , Layer.Reader Node Type  m
+    , Delete () m
+    , Layer.Reader Node Users  m
+    , Layer.Reader Node Model  m
+    , Layer.Reader Node Type   m
+    , Layer.Reader Edge Target m
+    , Layer.Reader Edge Source m
+    , SubComponents Edges m (Node.Uni ())
+    , Layer.IsUnwrapped Node.Uni
     ) => Set.Set Node.Some -> Node layout -> m ()
 deleteSubtreeWithWhitelist whitelist = go . Layout.relayout where
     go :: Node.Some -> m ()
