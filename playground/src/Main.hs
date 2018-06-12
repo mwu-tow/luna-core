@@ -40,7 +40,7 @@ import Luna.Syntax.Text.Parser.Data.CodeSpan (CodeSpan)
 import Luna.Syntax.Text.Parser.Data.Invalid (Invalids)
 
 import qualified Data.Graph.Data.Graph.Class          as Graph
-
+import Data.Graph.Component.Node.Destruction
 ----------------------
 -- === TestPass === --
 ----------------------
