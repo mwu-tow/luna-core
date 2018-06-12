@@ -76,7 +76,7 @@ mapM = \f ->
 
 mapM_ :: Applicative m
        => (Component.Some comp -> m a) -> ComponentList comp -> m ()
-mapM_ = void .: mapM
+mapM_ = \f -> foldr ((*>) . f) (return ())
 {-# INLINE mapM_ #-}
 
 -- === Instances === --

@@ -19,13 +19,12 @@ import Data.Graph.Component.Node.Layer.Users (Users)
 
 -- === API === --
 
-delete :: ( MonadIO m
-          , Component.Destructor1 m Edge
-          , Component.Destructor1 m Node
-          , Layer.Reader Node Users m
-          , Layer.Reader Edge Source m
-          , SubComponents Edges m (Node layout)
-          ) => Node layout -> m ()
+delete ::
+    ( MonadIO m
+    , Edge.Delete m
+    , Component.Destructor1 m Node
+    , SubComponents Edges m (Node layout)
+    ) => Node layout -> m ()
 delete = \node -> do
     edges <- subComponents @Edges node
     ComponentList.mapM_ Edge.delete edges

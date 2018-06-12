@@ -11,12 +11,14 @@ import Data.Graph.Component.Edge.Class       (Source, Edge, Edges)
 import Data.Graph.Component.Node.Class       (Node)
 import Data.Graph.Component.Node.Layer.Users (Users)
 
+type Delete m =
+    ( MonadIO m
+    , Component.Destructor1 m Edge
+    , Layer.Reader Node Users m
+    , Layer.Reader Edge Source m
+    )
 
-delete :: ( MonadIO m
-          , Component.Destructor1 m Edge
-          , Layer.Reader Node Users m
-          , Layer.Reader Edge Source m
-          ) => Edge layout -> m ()
+delete :: Delete m => Edge layout -> m ()
 delete = \edge -> do
     srcUsers <- Layer.read @Users =<< Layer.read @Source edge
     Set.delete srcUsers $! Layout.unsafeRelayout edge
