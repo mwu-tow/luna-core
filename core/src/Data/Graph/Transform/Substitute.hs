@@ -24,36 +24,39 @@ type Replace m = ( Layer.Reader (Component Edges) Source m
                  )
 
 replaceSource :: Replace m => Node a -> Edge (a *-* b) -> m ()
-replaceSource newSrc edge = do
+replaceSource = \newSrc edge -> do
     oldSrcUsers <- Layer.read @Users =<< Layer.read @Source edge
     Set.delete oldSrcUsers $ Layout.unsafeRelayout edge
     newSrcUsers <- Layer.read @Users newSrc
     Set.insert newSrcUsers $ Layout.unsafeRelayout edge
     Layer.write @Source edge newSrc
+{-# INLINE replaceSource #-}
 
-isCyclic :: (Layer.Reader (Component Edges) Source m,
-             Layer.Reader (Component Edges) Target m,
-             Layout.Get Source l ~ Layout.Get Target l) => Edge l -> m Bool
-isCyclic edge = (==) <$> Layer.read @Source edge <*> Layer.read @Target edge
+isCyclic ::
+    ( Layer.Reader (Component Edges) Source m
+    , Layer.Reader (Component Edges) Target m
+    , Layout.Get Source l ~ Layout.Get Target l
+    ) => Edge l -> m Bool
+isCyclic = \edge -> (==) <$> Layer.read @Source edge <*> Layer.read @Target edge
+{-# INLINE isCyclic #-}
 
-substitute :: ( Replace m
-              , Layer.Reader (Component Edges) Target m
-              ) => Node a -> Node b -> m ()
-substitute new old = do
+substitute ::
+    ( Replace m
+    , Layer.Reader (Component Edges) Target m
+    ) => Node a -> Node b -> m ()
+substitute = \new old -> do
      succs <- Set.toList =<< Layer.read @Users old
      withoutCycles <- filterM (\a -> not <$> isCyclic a) $
         map Layout.unsafeRelayout succs
      mapM_ (replaceSource new) withoutCycles
+{-# INLINE substitute #-}
 
-replace :: ( DestructNode.DeleteSubtree m
-           , Replace m
-           ) => Node a -> Node b -> m ()
-replace new old = substitute new old >> DestructNode.deleteSubtree old
-
-replace' :: ( DestructNode.DeleteSubtree m
-            , Replace m
-            ) => Node a -> Node b -> m ()
-replace' new old = substitute new old >> DestructNode.delete old
+replace ::
+    ( DestructNode.DeleteSubtree m
+    , Replace m
+    ) => Node a -> Node b -> m ()
+replace = \new old -> substitute new old >> DestructNode.deleteSubtree old
+{-# INLINE replace #-}
 
 type Reconnect l m = ( DestructEdge.Delete m
                      , Construction.Creator m
@@ -64,8 +67,9 @@ reconnectLayer :: forall l m a b.
     ( Reconnect l m
     , Layer.Data l b ~ Edge (a *-* b)
     ) => Node a -> Node b -> m ()
-reconnectLayer src tgt = do
+reconnectLayer = \src tgt -> do
     old <- Layer.read @l tgt
     DestructEdge.delete old
     link <- Construction.new src tgt
     Layer.write @l tgt link
+{-# INLINE reconnectLayer #-}
