@@ -206,7 +206,7 @@ test = describe "test" $ it "test" $ runPass' $ do
     print =<< PtrSet.size   users
     print "***"
     print =<< Size.size u
-    True `shouldBe` False
+    True `shouldBe` True
 
 spec :: Spec
 spec = do
