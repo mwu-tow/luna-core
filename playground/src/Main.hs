@@ -28,13 +28,17 @@ import qualified OCI.Pass.Definition.Interface       as Pass
 import qualified System.Environment                  as System
 import qualified Text.PrettyPrint.ANSI.Leijen        as Doc
 
+<<<<<<< HEAD
 import Data.Graph.Transform.Substitute as S
 
+=======
+>>>>>>> de73aa76cd09660e6fb5a8be50aa44f3e8976d69
 import Data.Map  (Map)
 import Data.Set  (Set)
 import Luna.Pass (Pass)
 
 import Data.Graph.Data.Component.Class (unsafeNull)
+<<<<<<< HEAD
 
 import Luna.Syntax.Text.Parser.Data.CodeSpan (CodeSpan)
 import Luna.Syntax.Text.Parser.Data.Invalid (Invalids)
@@ -54,6 +58,27 @@ type family TestPassSpec t where
     TestPassSpec (Pass.In Pass.Attrs) = '[World]
     TestPassSpec t = Pass.BasicPassSpec t
 
+=======
+
+import Luna.Syntax.Text.Parser.Data.CodeSpan (CodeSpan)
+import Luna.Syntax.Text.Parser.Data.Invalid (Invalids)
+
+import qualified Data.Graph.Data.Graph.Class          as Graph
+import Data.Graph.Component.Node.Destruction
+----------------------
+-- === TestPass === --
+----------------------
+
+-- === Definition === --
+
+data TestPass = TestPass
+
+type instance Pass.Spec TestPass t = TestPassSpec t
+type family TestPassSpec t where
+    TestPassSpec (Pass.In Pass.Attrs) = '[World]
+    TestPassSpec t = Pass.BasicPassSpec t
+
+>>>>>>> de73aa76cd09660e6fb5a8be50aa44f3e8976d69
 
 -- === Attrs === --
 
