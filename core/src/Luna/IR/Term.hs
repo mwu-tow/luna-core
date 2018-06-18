@@ -89,7 +89,6 @@ instance
     , Fold.Builder1 t m (ComponentSet    Link.Edges)
     , Fold.Builder  t m (Vector Word8)
     , Fold.Builder  t m (Vector Char)
-    , Fold.Builder  t m (Vector Name)
     , Fold.Builder  t m (Term.List Name)
     ) => Fold.Builder1 (Fold.Struct t) m UniTerm where
     build1 = gbuildFold__ @t

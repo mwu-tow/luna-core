@@ -14,11 +14,10 @@ import qualified Data.Graph.Data.Layer.Layout           as Layout
 import qualified Luna.IR.Term.Format                    as Format
 import qualified OCI.IR.Term.Definition                 as Term
 
-import Data.Vector.Storable.Foreign (Vector)
-import OCI.Data.Name                (Name)
-import OCI.IR.Term.Class            (Term, Terms)
-import OCI.IR.Term.Definition       (LinkTo, LinksTo, List)
-import OCI.IR.Term.Layout           ()
+import OCI.Data.Name          (Name)
+import OCI.IR.Term.Class      (Term, Terms)
+import OCI.IR.Term.Definition (LinkTo, LinksTo, List)
+import OCI.IR.Term.Layout     ()
 
 
 
