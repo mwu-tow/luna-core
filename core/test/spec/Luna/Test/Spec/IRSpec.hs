@@ -19,6 +19,8 @@ import qualified Data.Graph.Fold.SubTree               as Traversal
 import qualified Data.Graph.Fold.SubTree               as SubTree
 import qualified Data.Graph.Store                      as Store
 import qualified Data.Graph.Store.Size.Discovery       as Size
+import qualified Data.Mutable.Class                    as Mutable
+import qualified Data.Mutable.Storable.SmallSet        as SmallSet
 import qualified Data.Set                              as StdSet
 import qualified Data.Set.Mutable.Class                as Set
 import qualified Data.SmallAutoVector.Mutable.Storable as SmallVector
@@ -190,54 +192,89 @@ irDiscoverySpec = describe "traversal" $ do
 --         1 `shouldBe` 1
 
 
-type MyVec = SmallVector 16 Int
-
 testVec :: Spec
-testVec = describe "test" $ it "test" $ do
+testVec = describe "test" $ it "vec" $ do
     print ""
-    (print "---" :: IO ())
-    (vec :: MyVec) <- SmallVector.new
-    print =<< SmallVector.length vec
-    SmallVector.pushBack vec 8
+    (print "--- vec ---" :: IO ())
+    (a :: SmallVector 2 Int) <- Mutable.new
+    print =<< Mutable.size a
+    Mutable.pushBack a 8
     print "--"
-    print =<< SmallVector.elemsPtr vec
-    print =<< SmallVector.length vec
-    print =<< SmallVector.size vec
-    print =<< SmallVector.unsafeRead vec 0
-    SmallVector.pushBack vec 7
+    print =<< SmallVector.elemsPtr a
+    print =<< Mutable.size a
+    print =<< Mutable.capacity a
+    print =<< Mutable.unsafeRead a 0
+    Mutable.pushBack a 7
     print "--"
-    print =<< SmallVector.elemsPtr vec
-    print =<< SmallVector.length vec
-    print =<< SmallVector.size vec
-    print =<< SmallVector.unsafeRead vec 0
-    print =<< SmallVector.unsafeRead vec 1
-    SmallVector.pushBack vec 6
+    print =<< SmallVector.elemsPtr a
+    print =<< Mutable.size a
+    print =<< Mutable.capacity a
+    print =<< Mutable.unsafeRead a 0
+    print =<< Mutable.unsafeRead a 1
+    Mutable.pushBack a 6
     print "--"
-    print =<< SmallVector.elemsPtr vec
-    print =<< SmallVector.length vec
-    print =<< SmallVector.size vec
-    print =<< SmallVector.unsafeRead vec 0
-    print =<< SmallVector.unsafeRead vec 1
-    print =<< SmallVector.unsafeRead vec 2
-    SmallVector.pushBack vec 5
-    SmallVector.pushBack vec 4
-    SmallVector.pushBack vec 3
-    SmallVector.pushBack vec 2
-    SmallVector.pushBack vec 1
-    SmallVector.pushBack vec 10
+    print =<< SmallVector.elemsPtr a
+    print =<< Mutable.size a
+    print =<< Mutable.capacity a
+    print =<< Mutable.unsafeRead a 0
+    print =<< Mutable.unsafeRead a 1
+    print =<< Mutable.unsafeRead a 2
+    Mutable.pushBack a 5
+    Mutable.pushBack a 4
+    Mutable.pushBack a 3
+    Mutable.pushBack a 2
+    Mutable.pushBack a 1
+    Mutable.pushBack a 10
     print "--"
-    print =<< SmallVector.elemsPtr vec
-    print =<< SmallVector.length vec
-    print =<< SmallVector.size vec
-    print =<< SmallVector.unsafeRead vec 0
-    print =<< SmallVector.unsafeRead vec 1
-    print =<< SmallVector.unsafeRead vec 2
-    print =<< SmallVector.unsafeRead vec 3
-    print =<< SmallVector.unsafeRead vec 4
-    print =<< SmallVector.unsafeRead vec 5
-    print =<< SmallVector.unsafeRead vec 6
-    print =<< SmallVector.unsafeRead vec 7
-    print =<< SmallVector.unsafeRead vec 8
+    print =<< SmallVector.elemsPtr a
+    print =<< Mutable.size a
+    print =<< Mutable.capacity a
+    print =<< Mutable.unsafeRead a 0
+    print =<< Mutable.unsafeRead a 1
+    print =<< Mutable.unsafeRead a 2
+    print =<< Mutable.unsafeRead a 3
+    print =<< Mutable.unsafeRead a 4
+    print =<< Mutable.unsafeRead a 5
+    print =<< Mutable.unsafeRead a 6
+    print =<< Mutable.unsafeRead a 7
+    print =<< Mutable.unsafeRead a 8
+
+    True `shouldBe` False
+
+
+testSet :: Spec
+testSet = describe "test" $ it "set" $ do
+    print ""
+    (print "--- set ---" :: IO ())
+    (a :: SmallSet.SmallSet 2 Int) <- Mutable.new
+    print =<< Mutable.size a
+    Mutable.insert a 8
+    print "--"
+    print =<< Mutable.size a
+    print =<< Mutable.capacity a
+    print a
+    Mutable.insert a 7
+    print "--"
+    print =<< Mutable.size a
+    print =<< Mutable.capacity a
+    print a
+    Mutable.insert a 6
+    Mutable.remove a 7
+    Mutable.insert a 8
+    print "--"
+    print =<< Mutable.size a
+    print =<< Mutable.capacity a
+    print a
+    Mutable.insert a 5
+    Mutable.insert a 4
+    Mutable.insert a 3
+    Mutable.insert a 2
+    Mutable.insert a 1
+    Mutable.insert a 10
+    print "--"
+    print =<< Mutable.size a
+    print =<< Mutable.capacity a
+    print a
 
     True `shouldBe` False
 
@@ -268,7 +305,8 @@ test = describe "test" $ it "test" $ runPass' $ do
 spec :: Spec
 spec = do
 
-    -- testVec
+    testVec
+    testSet
     test
     nameSpec
     irCreationSpec

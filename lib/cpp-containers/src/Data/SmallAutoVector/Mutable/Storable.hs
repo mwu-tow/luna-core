@@ -2,7 +2,7 @@
 
 module Data.SmallAutoVector.Mutable.Storable
     (module Data.SmallAutoVector.Mutable.Storable, module X) where
-import Data.AutoVector.Mutable.Class as X
+import Data.Mutable.Class as X
 
 import Prologue hiding (FromList, Read, ToList, empty, length, toList,
                  unsafeRead, w)
@@ -18,14 +18,12 @@ import qualified Foreign.Storable                 as StdStorable
 import qualified Foreign.Storable.Class           as Storable
 import qualified Type.Known                       as Type
 
-import Data.AutoVector.Mutable.Storable (Vector)
-import Data.Storable                    (type (-::), Struct)
-import Foreign.Ptr                      (Ptr, minusPtr, nullPtr, plusPtr)
-import Foreign.Storable.Class           (Copy, Storable, View)
-import Foreign.Storable.Utils           (Dynamic, Dynamics)
-import Foreign.Storable.Utils           (castPeekAndOffset, castPokeAndOffset)
-import System.IO.Unsafe                 (unsafeDupablePerformIO,
-                                         unsafePerformIO)
+import Data.Storable          (type (-::), Struct)
+import Foreign.Ptr            (Ptr, minusPtr, nullPtr, plusPtr)
+import Foreign.Storable.Class (Copy, Storable, View)
+import Foreign.Storable.Utils (Dynamic, Dynamics)
+import Foreign.Storable.Utils (castPeekAndOffset, castPokeAndOffset)
+import System.IO.Unsafe       (unsafeDupablePerformIO, unsafePerformIO)
 
 
 
@@ -71,7 +69,7 @@ newtype SmallVector (n :: Nat) a = SmallVector (Struct (Layout n a))
 
 type Layout n a =
    '[ "length"   -:: Int
-    , "size"     -:: Int
+    , "capacity" -:: Int
     , "offset"   -:: Int
     , "localMem" -:: MemChunk n a
     ]
@@ -84,27 +82,16 @@ instance Struct.IsStruct (SmallVector n a)
 -- === Fields === --
 
 _length   :: Struct.FieldRef "length"
-_size     :: Struct.FieldRef "size"
+_capacity :: Struct.FieldRef "capacity"
 _offset   :: Struct.FieldRef "offset"
 _localMem :: Struct.FieldRef "localMem"
 _length   = Struct.field ; {-# INLINE _length   #-}
-_size     = Struct.field ; {-# INLINE _size     #-}
+_capacity = Struct.field ; {-# INLINE _capacity #-}
 _offset   = Struct.field ; {-# INLINE _offset   #-}
 _localMem = Struct.field ; {-# INLINE _localMem #-}
 
 
 -- === Utils === --
-
-placementNew :: ∀ n a m.
-    (MonadIO m, Type.KnownInt n)
-    => Ptr (SmallVector n a) -> m (SmallVector n a)
-placementNew = \ptr -> liftIO $ do
-    let vec = Struct.unsafeCastFromPtr ptr
-    Struct.writeField _length vec 0
-    Struct.writeField _size   vec $! Type.val' @n
-    Struct.writeField _offset vec 0
-    pure vec
-{-# INLINE placementNew #-}
 
 elemsPtr :: MonadIO m => SmallVector n a -> m (Ptr a)
 elemsPtr = \a -> do
@@ -119,10 +106,20 @@ elemsPtr = \a -> do
 instance (Type.KnownInt n, Storable.KnownStaticSize t a)
       => Storable.KnownStaticSize t (SmallVector n a) where
     staticSize = Storable.staticSize @t @Int                -- length
-               + Storable.staticSize @t @Int                -- size
+               + Storable.staticSize @t @Int                -- capacity
                + Storable.staticSize @t @Int                -- ptrOff
                + (Storable.staticSize @t @a * Type.val' @n) -- elems
     {-# INLINE staticSize #-}
+
+instance (MonadIO m, Type.KnownInt n)
+      => PlacementNew m (SmallVector n a) where
+    placementNew = \ptr -> liftIO $ do
+        let vec = Struct.unsafeCastFromPtr ptr
+        Struct.writeField _length vec 0
+        Struct.writeField _capacity   vec $! Type.val' @n
+        Struct.writeField _offset vec 0
+        pure vec
+    {-# INLINE placementNew #-}
 
 instance
     ( MonadIO m
@@ -136,14 +133,14 @@ instance
     {-# INLINE new #-}
 
 instance MonadIO m
-      => Length m (SmallVector n a) where
-    length = Struct.readField _length
-    {-# INLINE length #-}
+      => Size m (SmallVector n a) where
+    size = Struct.readField _length
+    {-# INLINE size #-}
 
 instance MonadIO m
-      => Size m (SmallVector n a) where
-    size = Struct.readField _size
-    {-# INLINE size #-}
+      => Capacity m (SmallVector n a) where
+    capacity = Struct.readField _capacity
+    {-# INLINE capacity #-}
 
 instance MonadIO m
       => Free m (SmallVector n a) where
@@ -172,7 +169,7 @@ instance (MonadIO m, Storable.StaticPoke View m a)
 instance (MonadIO m, Storable.StaticPeek View m a)
       => ToList m (SmallVector n a) where
     toList = \a -> do
-        len <- length a
+        len <- size a
         mapM (unsafeRead a) [0 .. len - 1]
     {-# INLINE toList #-}
 
@@ -187,11 +184,11 @@ instance (New m (SmallVector n a), Write m (SmallVector n a), Monad m)
 instance (MonadIO m, Storable.KnownStaticSize View a)
       => Grow m (SmallVector n a) where
     grow = \a -> do
-        oldSize   <- size     a
-        elemCount <- length   a
-        ptr       <- elemsPtr a
-        offset    <- Struct.readField _offset a
-        let newSize       = oldSize * 2
+        oldCapacity <- capacity a
+        elemCount   <- size     a
+        ptr         <- elemsPtr a
+        offset      <- Struct.readField _offset a
+        let newSize       = oldCapacity * 2
             elemByteSize  = Storable.staticSize @View @a
             bytesToMalloc = elemByteSize * newSize
             bytesToCopy   = elemByteSize * elemCount
@@ -200,19 +197,55 @@ instance (MonadIO m, Storable.KnownStaticSize View a)
         liftIO $ Mem.copyBytes newElemsPtr ptr bytesToCopy
         when (offset /= 0) $
             liftIO (Mem.free ptr)
-        Struct.writeField _size   a newSize
+        Struct.writeField _capacity   a newSize
         Struct.writeField _offset a $! newElemsPtr `minusPtr` localMemPtr
     {-# INLINE grow #-}
 
 instance (MonadIO m, Storable.StaticPoke View m a)
       => PushBack m (SmallVector n a) where
     pushBack = \a v -> do
-        len <- length a
-        siz <- size   a
-        when (len == siz) $ grow a
-        unsafeWrite a len v
-        Struct.writeField _length a $! len + 1
+        siz <- size     a
+        cap <- capacity a
+        when (siz == cap) $ grow a
+        unsafeWrite a siz v
+        Struct.writeField _length a $! siz + 1
     {-# INLINE pushBack #-}
+
+instance
+    ( MonadIO m
+    , Grow  m (SmallVector n a)
+    , Write m (SmallVector n a)
+    , Storable.KnownStaticSize View a
+    ) => InsertAt m (SmallVector n a) where
+    insertAt = \a ix v -> do
+        siz <- size     a
+        cap <- capacity a
+        when (siz == cap) $ grow a
+        ptr0 <- elemsPtr a
+        let elSize  = Storable.staticSize @View @a
+            ptrIx   = ptr0  `plusPtr` (elSize * ix)
+            ptrIx'  = ptrIx `plusPtr` elSize
+            byteOff = elSize * (siz - ix)
+        when (byteOff > 0) $ liftIO $ Mem.moveBytes ptrIx' ptrIx byteOff
+        unsafeWrite a ix v
+        Struct.writeField _length a $! siz + 1
+    {-# INLINE insertAt #-}
+
+instance
+    ( MonadIO m
+    , Storable.KnownStaticSize View a
+    ) => RemoveAt m (SmallVector n a) where
+    removeAt = \a ix -> do
+        siz  <- size a
+        ptr0 <- elemsPtr a
+        let elSize  = Storable.staticSize @View @a
+            ptrIx   = ptr0  `plusPtr` (elSize * ix)
+            ptrIx'  = ptrIx `plusPtr` elSize
+            byteOff = elSize * (siz - ix - 1)
+        when (byteOff > 0) $ liftIO $ Mem.moveBytes ptrIx ptrIx' byteOff
+        Struct.writeField _length a $! siz - 1
+    {-# INLINE removeAt #-}
+
 
 
 -- === Memory management instances === --

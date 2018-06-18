@@ -18,6 +18,7 @@ import qualified Foreign.Info.ByteSize       as ByteSize
 import qualified Foreign.Marshal.Utils       as Mem
 import qualified Foreign.Memory.Pool         as MemPool
 import qualified Foreign.Ptr                 as Ptr
+import qualified Foreign.Storable.Class      as Storable
 import qualified Foreign.Storable1.Deriving  as Storable1
 import qualified Language.Haskell.TH         as TH
 
@@ -123,13 +124,14 @@ instance Monad m => Data.ShallowDestructor1 m (Component comp) where
     destructShallow1 = const $ pure () ; {-# INLINE destructShallow1 #-}
 
 
--- === Traversals === --
+-- === Storable === --
 
--- instance GTraversable ctx (Component comp layout) where
---     gtraverse = \f comp ->
+instance Storable.KnownStaticSize t (Component tag layout) where
+    staticSize = Storable.stdSizeOf @(Component tag layout)
+    {-# INLINE staticSize #-}
 
--- class GTraversableLayers__ ctx (layers :: [Type]) m where
---     buildLayersFold__ :: SomePtr -> m (Fold.Result t) -> m (Fold.Result t)
+instance MonadIO m => Storable.Peek Storable.View m (Component tag layout)
+instance MonadIO m => Storable.Poke Storable.View m (Component tag layout)
 
 
 -- === Relayout === --

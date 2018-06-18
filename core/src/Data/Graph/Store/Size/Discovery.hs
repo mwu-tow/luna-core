@@ -94,8 +94,9 @@ instance MonadIO m
 instance MonadIO m
       => Fold.Builder1 Discovery m (ComponentVector comp) where
     build1 = \a mi -> do
-        size <- liftIO (DynamicStorable.sizeOf a)
-        (Size.ptrRegion %~ (+size)) <$> mi
+        undefined
+        -- size <- liftIO (DynamicStorable.sizeOf a)
+        -- (Size.ptrRegion %~ (+size)) <$> mi
     {-# INLINE build1 #-}
 
 instance (MonadIO m, Storable a, IsPtr a)
@@ -258,4 +259,4 @@ instance Storable a => ExternalFieldStorable (Vector a) where
         pure dynPtr'
     {-# INLINE dumpFieldBuilder #-}
 
-deriving instance ExternalFieldStorable (ComponentVector comp layout)
+-- deriving instance ExternalFieldStorable (ComponentVector comp layout)
