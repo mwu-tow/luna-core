@@ -246,7 +246,7 @@ test = describe "test" $ it "test" $ runPass' $ do
 
     v <- IR.var "a"
     v2 <- IR.var "a"
-    vn <- Vector.fromList ["foo", "bar", "baz"]
+    vn <- SmallVector.fromList ["foo", "bar", "baz"]
 
     print "vvvvvvvvvv"
     u <- IR.update v vn v
@@ -262,7 +262,7 @@ test = describe "test" $ it "test" $ runPass' $ do
     print =<< PtrSet.toList users
     print =<< PtrSet.size   users
     print "***"
-    print =<< Size.discover u
+    -- print =<< Size.discover u
     True `shouldBe` True
 
 spec :: Spec

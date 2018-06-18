@@ -35,6 +35,13 @@ class KnownDynamicSize t (a :: k) m where
     {-# INLINE dynamicSize #-}
 
 
+-- === Utils === --
+
+stdSizeOf :: ∀ a. Storable.Storable a => Int
+stdSizeOf = Storable.sizeOf (undefined :: a)
+{-# INLINE stdSizeOf #-}
+
+
 -- === Default instances for list of types === --
 
 instance KnownStaticSize t '[] where
@@ -108,7 +115,7 @@ pokeByteOff = poke @t .: plusPtr
 instance MonadIO m => Peek t m (tp)                        ; \
 instance MonadIO m => Poke t m (tp)                        ; \
 instance {-# OVERLAPPABLE #-} KnownStaticSize t (tp) where { \
-    staticSize = Storable.sizeOf (undefined :: tp)         ; \
+    staticSize = stdSizeOf @(tp)                           ; \
     {-# INLINE staticSize #-}                              }
 
 STORABLE(Int)

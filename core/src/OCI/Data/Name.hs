@@ -6,14 +6,14 @@ import OCI.Data.Name.Instances ()
 import Prologue
 
 import qualified Data.Generics.Traversable.Deriving as GTraversable
+import qualified Data.IntMap.Strict                 as IntMap
+import qualified FastString                         as FastString
+import qualified Foreign.Storable.Class             as Storable
+import qualified Language.Symbol.Label              as Label
+import qualified Prelude                            as Prelude
 -- import qualified Data.Graph.Store.External          as ExternalStorable
-import qualified Data.IntMap.Strict    as IntMap
-import qualified FastString            as FastString
-import qualified Language.Symbol.Label as Label
-import qualified Prelude               as Prelude
 
-import Binary (Binary)
--- import Data.Graph.Store.External (ExternalFieldStorable, ExternalStorable)
+import Binary           (Binary)
 import Data.IntMap      (IntMap)
 import Data.IORef       (IORef, atomicModifyIORef', newIORef, readIORef)
 import FastString       (FastString)
@@ -22,6 +22,7 @@ import GHC.IO.Unsafe    (unsafeDupablePerformIO)
 import Outputable       (Outputable)
 import System.IO.Unsafe (unsafePerformIO)
 import Unique           (Uniquable)
+-- import Data.Graph.Store.External (ExternalFieldStorable, ExternalStorable)
 
 
 -------------------
@@ -82,6 +83,11 @@ instance Show               Name where show    = show . convertTo @String       
 instance Semigroup          Name where n <> n' = convert $ value n <> value n'   ; {-# INLINE (<>)       #-}
 instance IsString           Name where fromString = convert                      ; {-# INLINE fromString #-}
 
+instance MonadIO m => Storable.Peek t m Name
+instance MonadIO m => Storable.Poke t m Name
+instance Storable.KnownStaticSize t Name where
+    staticSize = Storable.stdSizeOf @Name
+    {-# INLINE staticSize #-}
 
 
 ----------------------

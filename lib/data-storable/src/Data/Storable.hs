@@ -107,7 +107,8 @@ type family LookupFieldType__ name fields where
 
 -- === Definition === --
 
-newtype Struct (fields :: [FieldSig]) = Struct SomePtr deriving (Show, NFData)
+newtype Struct (fields :: [FieldSig]) = Struct SomePtr
+    deriving (Eq, Ord, Show, NFData)
 
 class IsStruct a where
     type Fields a :: [FieldSig]

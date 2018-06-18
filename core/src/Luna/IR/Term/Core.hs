@@ -17,7 +17,7 @@ import qualified OCI.IR.Term.Definition                 as Term
 import Data.Vector.Storable.Foreign (Vector)
 import OCI.Data.Name                (Name)
 import OCI.IR.Term.Class            (Term, Terms)
-import OCI.IR.Term.Definition       (LinkTo, LinksTo)
+import OCI.IR.Term.Definition       (LinkTo, LinksTo, List)
 import OCI.IR.Term.Layout           ()
 
 
@@ -42,7 +42,7 @@ Term.define [d|
     = Acc     { base :: LinkTo Terms, name  :: Name                            }
     | Lam     { arg  :: LinkTo Terms, body  :: LinkTo Terms                    }
     | Match   { arg  :: LinkTo Terms, ways  :: LinksTo Terms                   }
-    | Update  { base :: LinkTo Terms, path  :: Vector Name, val :: LinkTo Terms}
+    | Update  { base :: LinkTo Terms, path  :: List Name, val :: LinkTo Terms  }
 
  data Phrase
     = Blank

@@ -90,6 +90,7 @@ instance
     , Fold.Builder  t m (Vector Word8)
     , Fold.Builder  t m (Vector Char)
     , Fold.Builder  t m (Vector Name)
+    , Fold.Builder  t m (Term.List Name)
     ) => Fold.Builder1 (Fold.Struct t) m UniTerm where
     build1 = gbuildFold__ @t
     {-# INLINE build1 #-}
@@ -135,6 +136,11 @@ instance (Monad m, GUniTermFold t m (Constructor comp layout))
 
 instance Fold.Builder t m (Vector a)
       => Fold.Builder (UniTermFold t) m (Vector a) where
+    build = Fold.build @t
+    {-# INLINE build #-}
+
+instance Fold.Builder t m (Term.List a)
+      => Fold.Builder (UniTermFold t) m (Term.List a) where
     build = Fold.build @t
     {-# INLINE build #-}
 

@@ -21,15 +21,15 @@ import qualified Foreign.Ptr                      as Ptr
 import qualified Foreign.Storable                 as Storable
 import qualified Type.Data.List                   as List
 
-import Data.Generics.Traversable        (GTraversable)
-import Data.Graph.Data.Component.Class  (Component)
-import Data.Graph.Data.Component.Set    (ComponentSet)
-import Data.Graph.Data.Component.Vector (ComponentVector)
-import Data.Set                         (Set)
-import Data.Vector.Storable.Foreign     (Vector)
-import Foreign.Ptr.Utils                (SomePtr)
-import Type.Data.Bool                   (Not, type (||))
-
+import Data.Generics.Traversable             (GTraversable)
+import Data.Graph.Data.Component.Class       (Component)
+import Data.Graph.Data.Component.Set         (ComponentSet)
+import Data.Graph.Data.Component.Vector      (ComponentVector)
+import Data.Set                              (Set)
+import Data.SmallAutoVector.Mutable.Storable (SmallVector)
+import Data.Vector.Storable.Foreign          (Vector)
+import Foreign.Ptr.Utils                     (SomePtr)
+import Type.Data.Bool                        (Not, type (||))
 
 import qualified Type.Show as Type
 
@@ -121,6 +121,7 @@ instance {-# OVERLAPPABLE #-}
     build1 = Fold.build1 @(Fold.Struct (Scoped t)) ; {-# INLINE build1 #-}
 
 instance Monad m => Fold.Builder (Scoped t) m (Vector a)
+instance Monad m => Fold.Builder (Scoped t) m (SmallVector n a)
 
 
 

@@ -10,17 +10,19 @@ import Prologue hiding (FromList, Read, ToList, empty, length, toList,
 import qualified Data.AutoVector.Mutable.Storable as Vector
 import qualified Data.Construction                as Data
 import qualified Data.List                        as List
+import qualified Data.Property                    as Property
 import qualified Data.Storable                    as Struct
 import qualified Foreign.Marshal.Alloc            as Mem
 import qualified Foreign.Marshal.Utils            as Mem
+import qualified Foreign.Storable                 as StdStorable
 import qualified Foreign.Storable.Class           as Storable
 import qualified Type.Known                       as Type
 
 import Data.AutoVector.Mutable.Storable (Vector)
 import Data.Storable                    (type (-::), Struct)
 import Foreign.Ptr                      (Ptr, minusPtr, nullPtr, plusPtr)
-import Foreign.Storable                 (Storable)
-import Foreign.Storable.Class           (Copy, View)
+import Foreign.Storable.Class           (Copy, Storable, View)
+import Foreign.Storable.Utils           (Dynamic, Dynamics)
 import Foreign.Storable.Utils           (castPeekAndOffset, castPokeAndOffset)
 import System.IO.Unsafe                 (unsafeDupablePerformIO,
                                          unsafePerformIO)
@@ -65,6 +67,8 @@ instance Applicative m
 -- === Definition === --
 
 newtype SmallVector (n :: Nat) a = SmallVector (Struct (Layout n a))
+    deriving (Eq, Ord, NFData)
+
 type Layout n a =
    '[ "length"   -:: Int
     , "size"     -:: Int
@@ -110,7 +114,7 @@ elemsPtr = \a -> do
 {-# INLINE elemsPtr #-}
 
 
--- === Instances === --
+-- === API Instances === --
 
 instance (Type.KnownInt n, Storable.KnownStaticSize t a)
       => Storable.KnownStaticSize t (SmallVector n a) where
@@ -172,6 +176,14 @@ instance (MonadIO m, Storable.StaticPeek View m a)
         mapM (unsafeRead a) [0 .. len - 1]
     {-# INLINE toList #-}
 
+instance (New m (SmallVector n a), Write m (SmallVector n a), Monad m)
+      => FromList m (SmallVector n a) where
+    fromList = \lst -> do
+        a <- new
+        mapM_ (uncurry $ unsafeWrite a) $ zip [0 ..] lst
+        pure a
+    {-# INLINE fromList #-}
+
 instance (MonadIO m, Storable.KnownStaticSize View a)
       => Grow m (SmallVector n a) where
     grow = \a -> do
@@ -201,3 +213,46 @@ instance (MonadIO m, Storable.StaticPoke View m a)
         unsafeWrite a len v
         Struct.writeField _length a $! len + 1
     {-# INLINE pushBack #-}
+
+
+-- === Memory management instances === --
+
+instance Applicative m
+      => Storable.Peek View m (SmallVector n a) where
+    peek = pure . coerce
+    {-# INLINE peek #-}
+
+instance (MonadIO m, Storable.KnownStaticSize View (SmallVector n a))
+      => Storable.Poke View m (SmallVector n a) where
+    poke = \ptr a ->
+        let size = Storable.staticSize @View @(SmallVector n a)
+        in  liftIO $ Mem.copyBytes (coerce a) ptr size
+    {-# INLINE poke #-}
+
+instance MonadIO m => Data.ShallowDestructor1 m (SmallVector n) where
+    destructShallow1 = free
+    {-# INLINE destructShallow1 #-}
+
+
+-- === Debug instances === --
+
+instance (Show a, ToList IO (SmallVector n a))
+      => Show (SmallVector n a) where
+    show = show . unsafePerformIO . toList
+
+
+
+-- === Deprecated instances === --
+
+type instance Property.Get Dynamics (SmallVector n a) = Dynamic
+
+instance
+    ( Show a, Storable.Peek View IO a, Storable.KnownStaticSize View a
+    , Storable View IO (SmallVector n a)
+    , Type.KnownInt n
+    ) => StdStorable.Storable (SmallVector n a) where
+    sizeOf    = \ ~_ -> Storable.staticSize @View @(SmallVector n a)
+    alignment = \ ~_ -> StdStorable.alignment (undefined :: Int)
+    peek      = Storable.peek @View
+    poke      = Storable.poke @View
+    {-# INLINE sizeOf #-}
