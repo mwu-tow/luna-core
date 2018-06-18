@@ -15,10 +15,9 @@ import qualified Luna.IR.Term.Format                   as Format
 import qualified OCI.IR.Term.Definition                as Term
 
 -- import Data.Graph.Store.External (ExternalFieldStorable, ExternalStorable)
-import Data.Vector.Storable.Foreign (Vector)
-import OCI.Data.Name                (Name)
-import OCI.IR.Term.Class            (Terms)
-import OCI.IR.Term.Definition       (LinkTo, LinksTo)
+import OCI.Data.Name          (Name)
+import OCI.IR.Term.Class      (Terms)
+import OCI.IR.Term.Definition (LinkTo, LinksTo)
 
 -- FIXME: remove when refactoring Cmp instances
 import Luna.IR.Term.Core ()
@@ -82,7 +81,7 @@ Term.define [d|
  data Ast
     = AccSection   { path     :: Vec16 Name                                   }
     | Disabled     { body     :: LinkTo Terms                                  }
-    | Documented   { doc      :: Vector Char  , base   :: LinkTo  Terms        }
+    | Documented   { doc      :: Vec16  Char  , base   :: LinkTo  Terms        }
     | Function     { name     :: LinkTo Terms , args   :: LinksTo Terms
                    , body     :: LinkTo Terms                                  }
     | Grouped      { body     :: LinkTo Terms                                  }
@@ -97,12 +96,12 @@ Term.define [d|
     | SectionRight { operator :: LinkTo Terms , body   :: LinkTo Terms         }
     | Modify       { base     :: LinkTo Terms , path   :: Vec16 Name
                    , operator :: Name         , value  :: LinkTo Terms         }
-    | Metadata     { content  :: Vector Char                                   }
+    | Metadata     { content  :: Vec16 Char                                    }
     | Record       { isNative :: Bool         , name   :: Name
                    , params   :: LinksTo Terms, conss  :: LinksTo Terms
                    , decls    :: LinksTo Terms                                 }
     | RecordCons   { name     :: Name         , fields :: LinksTo Terms        }
-    | RecordFields { names    :: Vec16 Name  , tp     :: LinkTo Terms         }
+    | RecordFields { names    :: Vec16  Name  , tp     :: LinkTo Terms         }
     | Seq          { former   :: LinkTo Terms , later  :: LinkTo Terms         }
     | Tuple        { items    :: LinksTo Terms                                 }
     | Typed        { base     :: LinkTo Terms , tp     :: LinkTo Terms         }

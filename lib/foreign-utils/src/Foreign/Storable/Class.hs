@@ -118,7 +118,13 @@ instance {-# OVERLAPPABLE #-} KnownStaticSize t (tp) where { \
     staticSize = stdSizeOf @(tp)                           ; \
     {-# INLINE staticSize #-}                              }
 
+STORABLE(())
+STORABLE(Char)
 STORABLE(Int)
+STORABLE(Word8)
+STORABLE(Word16)
+STORABLE(Word32)
+STORABLE(Word64)
 STORABLE(Ptr a)
 
 
