@@ -16,6 +16,7 @@ import qualified Data.Graph.Data.Layer.Layout     as Layout
 import qualified Data.Graph.Fold.Class            as Fold
 import qualified Data.Graph.Fold.Struct           as Fold
 import qualified Data.Map.Strict                  as Map
+import qualified Data.Mutable.Class               as Mutable
 import qualified Data.Set                         as Set
 import qualified Foreign.Ptr                      as Ptr
 import qualified Foreign.Storable                 as Storable
@@ -101,7 +102,7 @@ instance {-# OVERLAPPABLE #-}
     (MonadIO m, Fold.Builder1 (Scoped t) m (Component comp))
       => Fold.Builder1 (Scoped t) m (ComponentVector comp) where
     build1 = \comp mr -> do
-        lst <- ComponentVector.toList comp
+        lst <- Mutable.toList comp
         let f = foldl' (\f a -> f . Fold.build1 @(Scoped t) a) id lst
         f mr
     {-# INLINE build1 #-}
@@ -110,7 +111,7 @@ instance {-# OVERLAPPABLE #-}
     (MonadIO m, Fold.Builder1 (Scoped t) m (Component comp))
       => Fold.Builder1 (Scoped t) m (ComponentSet comp) where
     build1 = \comp mr -> do
-        lst <- ComponentSet.toList comp
+        lst <- Mutable.toList comp
         let f = foldl' (\f a -> f . Fold.build1 @(Scoped t) a) id lst
         f mr
     {-# INLINE build1 #-}

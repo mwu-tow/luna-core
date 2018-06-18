@@ -24,4 +24,4 @@ data Users deriving (Generic)
 instance Layer  Users where
     type Cons   Users = Link.Set
     type Layout Users layout = layout *-* Layout.Set Model () layout
-    manager = Layer.dynamicManager
+    manager = undefined -- Layer.dynamicManager

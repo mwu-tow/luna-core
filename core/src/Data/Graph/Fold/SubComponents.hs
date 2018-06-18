@@ -19,6 +19,7 @@ import qualified Data.Graph.Fold.Class                as Fold
 import qualified Data.Graph.Fold.Scoped               as Fold
 import qualified Data.Graph.Fold.Struct               as Fold
 import qualified Data.Map.Strict                      as Map
+import qualified Data.Mutable.Class                   as Mutable
 import qualified Data.PtrSet.Mutable                  as PtrSet
 import qualified Data.Set                             as Set
 import qualified Foreign.Ptr                          as Ptr
@@ -120,7 +121,7 @@ instance {-# OVERLAPPABLE #-} Monad m
 instance MonadIO m
       => Fold.Builder1 (Discovery comp) m (ComponentSet comp) where
     build1 = \a acc
-        -> (\a b -> a <> b) <$> (convert <$> PtrSet.toList (unwrap a)) <*> acc
+        -> (\a b -> a <> b) <$> (convert <$> Mutable.toList a) <*> acc
     {-# INLINE build1 #-}
 
 

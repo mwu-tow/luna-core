@@ -280,7 +280,7 @@ instance (Show a, ToList IO (SmallVector n a))
 type instance Property.Get Dynamics (SmallVector n a) = Dynamic
 
 instance
-    ( Show a, Storable.Peek View IO a, Storable.KnownStaticSize View a
+    ( Storable.Peek View IO a, Storable.KnownStaticSize View a
     , Storable View IO (SmallVector n a)
     , Type.KnownInt n
     ) => StdStorable.Storable (SmallVector n a) where

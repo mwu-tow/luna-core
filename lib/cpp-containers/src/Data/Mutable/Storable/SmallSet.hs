@@ -4,11 +4,15 @@ module Data.Mutable.Storable.SmallSet
     (module Data.Mutable.Storable.SmallSet, module X) where
 import Data.Mutable.Class as X
 
-import Prologue hiding (Read, length, unsafeRead)
+import Prologue hiding (FromList, Read, ToList, fromList, length, toList,
+                 unsafeRead)
 
+import qualified Data.Construction                     as Data
 import qualified Data.SmallAutoVector.Mutable.Storable as SmallVector
 import qualified Data.Storable                         as Struct
+import qualified Foreign.Storable                      as StdStorable
 import qualified Foreign.Storable.Class                as Storable
+import qualified Type.Known                            as Type
 
 import Data.SmallAutoVector.Mutable.Storable (MemChunk, SmallVector)
 import Foreign.Storable.Class                (Copy, Storable, View)
@@ -106,9 +110,31 @@ instance (RemoveAt m (SetImp__ n a), LookupAndApp m n a)
                      (\_ -> pure ()) a v
     {-# INLINE remove #-}
 
+instance (FromList m (SetImp__ n a), Functor m)
+      => FromList m (SmallSet n a) where
+    fromList = fmap wrap . fromList
+    {-# INLINE fromList #-}
+
+instance ToList m (SetImp__ n a)
+      => ToList m (SmallSet n a) where
+    toList = toList . unwrap
+    {-# INLINE toList #-}
+
+
 
 -- === Debug Instances === --
 
 instance Show (SetImp__ n a)
       => Show (SmallSet n a) where
     show = show . unwrap
+
+
+-- === Deprecated Instances === --
+
+deriving instance StdStorable.Storable (SetImp__ n a)
+    => StdStorable.Storable (SmallSet n a)
+
+-- instance (MonadIO m, Type.KnownInt n)
+--       => Data.Constructor1 m () (SmallSet n) where
+--     construct1 = \_ -> new
+--     {-# INLINABLE construct1 #-}

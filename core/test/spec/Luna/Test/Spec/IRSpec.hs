@@ -147,8 +147,8 @@ irCreationSpec = describe "ir creation" $ do
         v2           <- IR.var "b"
         u1           <- IR.unify v1 v2
         IR.Unify l r <- IR.model u1
-        v1_users     <- Set.toList =<< Layer.read @IR.Users v1
-        v2_users     <- Set.toList =<< Layer.read @IR.Users v2
+        v1_users     <- Mutable.toList =<< Layer.read @IR.Users v1
+        v2_users     <- Mutable.toList =<< Layer.read @IR.Users v2
         v1_users `shouldBe` [Layout.relayout l]
         v2_users `shouldBe` [Layout.relayout r]
 

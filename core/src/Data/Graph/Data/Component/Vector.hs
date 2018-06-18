@@ -52,7 +52,6 @@ instance (FromList m (Unwrapped (ComponentVector comp layout)), Functor m)
     fromList = fmap wrap . fromList
     {-# INLINE fromList #-}
 
-
 instance ToList m (Unwrapped (ComponentVector comp layout))
       => ToList m (ComponentVector comp layout) where
     toList = toList . unwrap
