@@ -42,6 +42,11 @@ instance (FromList m (Unwrapped (ComponentSet comp layout)), Functor m)
     fromList = fmap wrap . fromList
     {-# INLINE fromList #-}
 
+instance (New m (Unwrapped (ComponentSet comp layout)), Functor m)
+      => New m (ComponentSet comp layout) where
+    new = wrap <$> new
+    {-# INLINE new #-}
+
 -- instance ToList m (Unwrapped (ComponentSet comp layout))
 --       => ToList m (ComponentSet comp layout) where
 --     toList = toList . unwrap
@@ -60,9 +65,9 @@ instance (FromList m (Unwrapped (ComponentSet comp layout)), Functor m)
 --     construct2 = \ _ -> wrap <$> Data.construct1'
 --     {-# INLINE construct2 #-}
 
--- instance MonadIO m => Data.ShallowDestructor2 m ComponentSet where
---     destructShallow2 = Data.destruct1 . unwrap
---     {-# INLINE destructShallow2 #-}
+instance MonadIO m => Data.ShallowDestructor2 m ComponentSet where
+    destructShallow2 = Data.destruct1 . unwrap
+    {-# INLINE destructShallow2 #-}
 
 
 makeLenses ''ComponentSet

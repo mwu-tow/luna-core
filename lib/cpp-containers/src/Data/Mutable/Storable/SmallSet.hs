@@ -16,6 +16,7 @@ import qualified Type.Known                            as Type
 
 import Data.SmallAutoVector.Mutable.Storable (MemChunk, SmallVector)
 import Foreign.Storable.Class                (Copy, Storable, View)
+import System.IO.Unsafe                      (unsafeDupablePerformIO)
 
 
 
@@ -25,9 +26,9 @@ import Foreign.Storable.Class                (Copy, Storable, View)
 
 -- === Definition === --
 
-type    SetImp__ (n :: Nat) a = SmallVector n a
+type SetImp__ = SmallVector
 newtype SmallSet (n :: Nat) a = SmallSet (SetImp__ n a)
-    deriving (Eq, Ord, NFData)
+    deriving (Eq, Ord, NFData, Free m)
 makeLenses ''SmallSet
 
 type instance Item (SmallSet n a) = a
@@ -134,7 +135,9 @@ instance Show (SetImp__ n a)
 deriving instance StdStorable.Storable (SetImp__ n a)
     => StdStorable.Storable (SmallSet n a)
 
--- instance (MonadIO m, Type.KnownInt n)
---       => Data.Constructor1 m () (SmallSet n) where
---     construct1 = \_ -> new
---     {-# INLINABLE construct1 #-}
+-- WARNING: this instance is strange. It does not release self-memory,
+--          because it is used for placement-new objects
+instance (Data.Destructor1 m (SetImp__ n), Monad m)
+      => Data.Destructor1 m (SmallSet n) where
+    destruct1 = Data.destruct1 . unwrap
+    {-# INLINE destruct1 #-}

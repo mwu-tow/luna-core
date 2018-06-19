@@ -289,3 +289,15 @@ instance
     peek      = Storable.peek @View
     poke      = Storable.poke @View
     {-# INLINE sizeOf #-}
+
+
+-- WARNING: this instance is strange. It does not release self-memory,
+--          because it is used for placement-new objects
+instance MonadIO m
+      => Data.Destructor1 m (SmallVector n) where
+    destruct1 = \a -> liftIO $ do
+        offset <- Struct.readField _offset a
+        when (offset /= 0) $ do
+            let localMemPtr = Struct.fieldPtr _localMem a
+            Mem.free $ localMemPtr `plusPtr` offset
+    {-# INLINE destruct1 #-}

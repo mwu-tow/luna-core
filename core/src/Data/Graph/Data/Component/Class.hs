@@ -109,7 +109,6 @@ instance Creator comp m => Data.Constructor1 m () (Component comp) where
         size  <- ByteSize.get @(Component comp)
         let ptr = coerce ir
         liftIO $ Mem.copyBytes ptr (layer ^. Layer.dynamicInitializer) size
-        liftIO $ (layer ^. Layer.dynamicConstructor) ptr
         pure ir
     {-# INLINE construct1 #-}
 

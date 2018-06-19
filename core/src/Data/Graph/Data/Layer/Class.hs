@@ -150,14 +150,12 @@ byteSize = Storable1.sizeOf' @(Cons layer)
 -- === Definition === --
 
 data Manager (layer :: Type) = Manager
-    { _initializer :: ∀ layout. Maybe (Cons layer layout)
-    , _constructor :: ∀ layout. Maybe (IO (Cons layer layout))
+    { _initializer :: ∀ layout. Maybe (IO (Cons layer layout))
     , _destructor  :: ∀ layout. Maybe (Cons layer layout -> IO ())
     }
 
 data DynamicManager comp = DynamicManager
     { _dynamicInitializer :: !SomePtr
-    , _dynamicConstructor :: !(SomePtr -> IO ())
     , _dynamicDestructor  :: !(SomePtr -> IO ())
     }
 
@@ -166,33 +164,31 @@ data DynamicManager comp = DynamicManager
 
 -- | WARNING! Using this function will result in uninitialized layer memory.
 unsafeNoManager :: Manager layer
-unsafeNoManager = Manager Nothing Nothing Nothing ; {-# INLINE unsafeNoManager #-}
+unsafeNoManager = Manager Nothing Nothing ; {-# INLINE unsafeNoManager #-}
 
 -- | WARNING! Using this function will result in uninitialized layer memory.
 unsafeOnlyDestructorManager :: ∀ layer. Data.ShallowDestructor1 IO (Cons layer)
                             => Manager layer
-unsafeOnlyDestructorManager = Manager Nothing Nothing
+unsafeOnlyDestructorManager = Manager Nothing
                             $ Just Data.destructShallow1
 {-# INLINE unsafeOnlyDestructorManager #-}
 
 staticManager :: Default1 (Cons layer) => Manager layer
-staticManager = Manager (Just def1) Nothing Nothing ; {-# INLINE staticManager #-}
+staticManager = Manager (Just $ pure def1) Nothing ; {-# INLINE staticManager #-}
 
-dynamicManager :: ( Data.Constructor1 IO () (Cons layer)
-                  , Data.ShallowDestructor1 IO (Cons layer)
+dynamicManager :: ( Data.ShallowDestructor1 IO (Cons layer)
                   ) => Manager layer
 dynamicManager = Manager Nothing
-                 (Just Data.construct1')
                  (Just Data.destructShallow1)
 {-# INLINE dynamicManager #-}
 
-customStaticManager :: (∀ layout. Cons layer layout) -> Manager layer
-customStaticManager !t = Manager (Just t) Nothing Nothing ; {-# INLINE customStaticManager #-}
+-- customStaticManager :: (∀ layout. Cons layer layout) -> Manager layer
+-- customStaticManager !t = Manager (Just t) Nothing ; {-# INLINE customStaticManager #-}
 
-customDynamicManager :: (∀ layout. IO (Cons layer layout))
-                     -> (∀ layout. Cons layer layout -> IO ())
-                     -> Manager layer
-customDynamicManager !s !t = Manager Nothing (Just s) (Just t) ; {-# INLINE customDynamicManager #-}
+-- customDynamicManager :: (∀ layout. IO (Cons layer layout))
+--                      -> (∀ layout. Cons layer layout -> IO ())
+--                      -> Manager layer
+-- customDynamicManager !s !t = Manager Nothing (Just s) (Just t) ; {-# INLINE customDynamicManager #-}
 
 
 -- === Instances === --

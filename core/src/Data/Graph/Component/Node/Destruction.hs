@@ -11,8 +11,8 @@ import qualified Data.Graph.Data.Component.Class       as Component
 import qualified Data.Graph.Data.Component.List        as ComponentList
 import qualified Data.Graph.Data.Layer.Class           as Layer
 import qualified Data.Graph.Data.Layer.Layout          as Layout
+import qualified Data.Mutable.Class                    as Mutable
 import qualified Data.Set                              as Set
-import qualified Data.Set.Mutable.Class                as MutableSet
 
 import Control.Monad                   (filterM)
 import Data.Graph.Component.Edge.Class (Edge, Edges, Source, Target)
@@ -36,11 +36,11 @@ type Delete m =
     )
 
 delete :: Delete m => Node layout -> m ()
-delete = undefined -- \node -> do
-    -- edges <- subComponents1 @Edges node
-    -- let es = Set.toList $ Set.fromList $ (convert edges :: [Edge.SomeEdge])
-    -- traverse Edge.delete es
-    -- Component.destruct1 node
+delete = \node -> do
+    edges <- subComponents1 @Edges node
+    let es = Set.toList $ Set.fromList $ (convert edges :: [Edge.SomeEdge])
+    traverse Edge.delete es
+    Component.destruct1 node
 {-# INLINE delete #-}
 
 type DeleteSubtree m =
@@ -57,21 +57,21 @@ type DeleteSubtree m =
 
 deleteSubtreeWithWhitelist :: ∀ layout m. DeleteSubtree m
                            => Set.Set Node.Some -> Node layout -> m ()
-deleteSubtreeWithWhitelist whitelist = undefined -- go . Layout.relayout where
-    -- go :: Node.Some -> m ()
-    -- go root = do
-    --     succs <- MutableSet.toList =<< Layer.read @Users root
-    --     loops <- traverse Edge.isCyclic succs
-    --     let allLoops    = and loops
-    --         whitelisted = Set.member root whitelist
-    --     when (allLoops && not whitelisted) $ do
-    --         inputEdges :: [Edge.SomeEdge] <- convert <$> Node.inputs root
-    --         tpEdge <- Layer.read @Type root
-    --         let allInputEdges = Layout.relayout tpEdge : inputEdges
-    --         nonCyclicEdges <- filterM (fmap not . Edge.isCyclic) allInputEdges
-    --         inputs         <- traverse (Layer.read @Source) nonCyclicEdges
-    --         delete root
-    --         traverse_ go $ Set.toList $ Set.fromList inputs
+deleteSubtreeWithWhitelist whitelist = go . Layout.relayout where
+    go :: Node.Some -> m ()
+    go root = do
+        succs <- Mutable.toList =<< Layer.read @Users root
+        loops <- traverse Edge.isCyclic succs
+        let allLoops    = and loops
+            whitelisted = Set.member root whitelist
+        when (allLoops && not whitelisted) $ do
+            inputEdges :: [Edge.SomeEdge] <- convert <$> Node.inputs root
+            tpEdge <- Layer.read @Type root
+            let allInputEdges = Layout.relayout tpEdge : inputEdges
+            nonCyclicEdges <- filterM (fmap not . Edge.isCyclic) allInputEdges
+            inputs         <- traverse (Layer.read @Source) nonCyclicEdges
+            delete root
+            traverse_ go $ Set.toList $ Set.fromList inputs
 {-# INLINE deleteSubtreeWithWhitelist #-}
 
 deleteSubtree :: DeleteSubtree m => Node layout -> m ()

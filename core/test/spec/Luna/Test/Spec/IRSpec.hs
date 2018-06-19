@@ -281,6 +281,10 @@ testSet = describe "test" $ it "set" $ do
 test :: Spec
 test = describe "test" $ it "test" $ runPass' $ do
 
+    print "=============="
+    print "=============="
+    print "=============="
+
     v <- IR.var "a"
     v2 <- IR.var "a"
     vn <- SmallVector.fromList ["foo", "bar", "baz"]
@@ -305,8 +309,8 @@ test = describe "test" $ it "test" $ runPass' $ do
 spec :: Spec
 spec = do
 
-    testVec
-    testSet
+    -- testVec
+    -- testSet
     test
     nameSpec
     irCreationSpec

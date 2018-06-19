@@ -248,7 +248,7 @@ instance ( layers ~ ComponentLayers graph comp
         liftIO $ mkCompInitializer @layers init
         pure $ Layer.DynamicManager
                init
-               (mkCompConstructor @layers)
+            --    (mkCompConstructor @layers)
                (mkCompDestructor  @layers)
 
 class MapLayersMem ctx (layers :: [Type]) where
@@ -278,13 +278,13 @@ instance (Layer l, Layer.StorableData l) => StorableLayer l
 
 mkCompInitializer :: ∀ layers. StorableLayers layers => SomePtr -> IO ()
 mkCompInitializer = mapLayersMem @StorableLayer @layers $ \(_ :: Proxy l) ptr ->
-    Storable1.poke ptr <$> Layer.manager @l ^. Layer.initializer
+    (Storable1.poke ptr =<<) <$> Layer.manager @l ^. Layer.initializer
 {-# INLINE mkCompInitializer #-}
 
-mkCompConstructor :: ∀ layers. StorableLayers layers => SomePtr -> IO ()
-mkCompConstructor = mapLayersMem @StorableLayer @layers $ \(_ :: Proxy l) ptr ->
-    (Storable1.poke ptr =<<) <$> Layer.manager @l ^. Layer.constructor
-{-# INLINE mkCompConstructor #-}
+-- mkCompConstructor :: ∀ layers. StorableLayers layers => SomePtr -> IO ()
+-- mkCompConstructor = mapLayersMem @StorableLayer @layers $ \(_ :: Proxy l) ptr ->
+    -- (Storable1.poke ptr =<<) <$> Layer.manager @l ^. Layer.constructor
+-- {-# INLINE mkCompConstructor #-}
 
 mkCompDestructor :: ∀ layers. StorableLayers layers => SomePtr -> IO ()
 mkCompDestructor = mapLayersMem @StorableLayer @layers $ \(_ :: Proxy l) ptr ->
