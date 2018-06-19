@@ -9,7 +9,6 @@ import Prologue hiding (FromList, ToList, fromList, toList)
 
 import qualified Data.Construction          as Data
 import qualified Data.Property              as Property
-import qualified Data.Set.Mutable.Class     as Set
 import qualified Foreign.Storable.Utils     as Storable
 import qualified Foreign.Storable1.Deriving as Storable1
 

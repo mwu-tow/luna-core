@@ -22,7 +22,6 @@ import qualified Data.Graph.Store.Size.Discovery       as Size
 import qualified Data.Mutable.Class                    as Mutable
 import qualified Data.Mutable.Storable.SmallSet        as SmallSet
 import qualified Data.Set                              as StdSet
-import qualified Data.Set.Mutable.Class                as Set
 import qualified Data.SmallAutoVector.Mutable.Storable as SmallVector
 import qualified Data.Vector.Storable.Foreign          as Vector
 import qualified Foreign.Marshal.Alloc                 as Mem
