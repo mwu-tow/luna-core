@@ -72,10 +72,10 @@ newtype SmallVector   (n :: Nat) a = SmallVector (SmallVector__ n a)
     deriving (Eq, Ord, NFData)
 
 type Layout n a =
-   '[ "length"   -:: Int
-    , "capacity" -:: Int
-    , "offset"   -:: Int
-    , "localMem" -:: MemChunk n a
+   '[ "length"      -:: Int
+    , "capacity"    -:: Int
+    , "externalMem" -:: (Ptr a)
+    , "localMem"    -:: MemChunk n a
     ]
 makeLenses ''SmallVector
 
@@ -85,27 +85,27 @@ instance Struct.IsStruct (SmallVector n a)
 
 -- === Fields === --
 
-_length   :: Struct.FieldRef "length"
-_capacity :: Struct.FieldRef "capacity"
-_offset   :: Struct.FieldRef "offset"
-_localMem :: Struct.FieldRef "localMem"
-_length   = Struct.field ; {-# INLINE _length   #-}
-_capacity = Struct.field ; {-# INLINE _capacity #-}
-_offset   = Struct.field ; {-# INLINE _offset   #-}
-_localMem = Struct.field ; {-# INLINE _localMem #-}
+_length      :: Struct.FieldRef "length"
+_capacity    :: Struct.FieldRef "capacity"
+_externalMem :: Struct.FieldRef "externalMem"
+_localMem    :: Struct.FieldRef "localMem"
+_length      = Struct.field ; {-# INLINE _length      #-}
+_capacity    = Struct.field ; {-# INLINE _capacity    #-}
+_externalMem = Struct.field ; {-# INLINE _externalMem #-}
+_localMem    = Struct.field ; {-# INLINE _localMem    #-}
 
 
 -- === Utils === --
 
 elemsPtr :: MonadIO m => SmallVector n a -> m (Ptr a)
 elemsPtr = \a -> do
-    offset <- Struct.readField _offset a
-    let localMemPtr = Struct.fieldPtr _localMem a
-    pure $ localMemPtr `plusPtr` offset
+    isExt <- usesDynamicMemory a
+    if isExt then            Struct.readField _externalMem a
+             else coerce <$> Struct.readField _localMem    a
 {-# INLINE elemsPtr #-}
 
 usesDynamicMemory :: MonadIO m => SmallVector n a -> m Bool
-usesDynamicMemory = fmap (/= 0) . Struct.readField _offset
+usesDynamicMemory = fmap (/= nullPtr) . Struct.readField _externalMem
 {-# INLINE usesDynamicMemory #-}
 
 
@@ -131,11 +131,11 @@ instance (MonadIO m, Storable.KnownConstantStaticSize a)
 instance (MonadIO m, Type.KnownInt n)
       => PlacementNew m (SmallVector n a) where
     placementNew = \ptr -> liftIO $ do
-        let vec = Struct.unsafeCastFromPtr ptr
-        Struct.writeField _length vec 0
-        Struct.writeField _capacity   vec $! Type.val' @n
-        Struct.writeField _offset vec 0
-        pure vec
+        let a = Struct.unsafeCastFromPtr ptr
+        Struct.writeField _length a 0
+        Struct.writeField _capacity a $! Type.val' @n
+        Struct.writeField _externalMem a nullPtr
+        pure a
     {-# INLINE placementNew #-}
 
 instance
@@ -162,10 +162,8 @@ instance MonadIO m
 instance MonadIO m
       => Free m (SmallVector n a) where
     free = \a -> liftIO $ do
-        whenM (usesDynamicMemory a) $ do
-            let localMemPtr = Struct.fieldPtr _localMem a
-            offset <- Struct.readField _offset a
-            Mem.free $ localMemPtr `plusPtr` offset
+        whenM (usesDynamicMemory a) 
+            $ Mem.free =<< Struct.readField _externalMem a
         Struct.free a
     {-# INLINE free #-}
 
@@ -208,13 +206,12 @@ instance (MonadIO m, Storable.KnownConstantStaticSize a)
             elemByteSize  = Storable.constantStaticSize @a
             bytesToMalloc = elemByteSize * newSize
             bytesToCopy   = elemByteSize * elemCount
-            localMemPtr   = Struct.fieldPtr _localMem a
         newElemsPtr <- liftIO $ Mem.mallocBytes bytesToMalloc
         liftIO $ Mem.copyBytes newElemsPtr ptr bytesToCopy
         whenM (usesDynamicMemory a) $
             liftIO (Mem.free ptr)
         Struct.writeField _capacity a newSize
-        Struct.writeField _offset a $! newElemsPtr `minusPtr` localMemPtr
+        Struct.writeField _externalMem a $! newElemsPtr
     {-# INLINE grow #-}
 
 instance (MonadIO m, Storable.StaticPoke View m a)
@@ -275,9 +272,7 @@ instance (MonadIO m, Storable.KnownConstantStaticSize (SmallVector n a), Show (S
       => Storable.Poke View m (SmallVector n a) where
     poke = \ptr a ->
         let size = Storable.constantStaticSize @(SmallVector n a)
-        in do
-            print ("POKE " <> show a <> ": " <> show size)
-            liftIO $ Mem.copyBytes ptr (coerce a) size
+        in  liftIO $ Mem.copyBytes ptr (coerce a) size
 
     {-# INLINE poke #-}
 
@@ -316,8 +311,6 @@ instance
 instance MonadIO m
       => Data.Destructor1 m (SmallVector n) where
     destruct1 = \a -> liftIO $ do
-        whenM (usesDynamicMemory a) $ do
-            let localMemPtr = Struct.fieldPtr _localMem a
-            offset <- Struct.readField _offset a
-            Mem.free $ localMemPtr `plusPtr` offset
+        whenM (usesDynamicMemory a) 
+            $ Mem.free =<< Struct.readField _externalMem a
     {-# INLINE destruct1 #-}

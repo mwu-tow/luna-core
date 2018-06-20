@@ -12,7 +12,7 @@ import Prologue                        hiding (FromList, ToList, fromList,
 import qualified Data.Construction            as Data
 import qualified Data.Property                as Property
 import qualified Data.Vector.Storable.Foreign as Vector
-import qualified Foreign.Storable.Utils       as Storable
+import qualified Foreign.Storable.Class       as Storable
 import qualified Foreign.Storable1.Deriving   as Storable1
 
 import Data.SmallAutoVector.Mutable.Storable (SmallVector)
@@ -27,7 +27,7 @@ import Foreign.Storable                      (Storable)
 -- === Definition === --
 
 newtype ComponentVector comp layout
-    = ComponentVector (SmallVector 16 (Component comp layout))
+    = ComponentVector (SmallVector 0 (Component comp layout))
     deriving (Eq, Show, Storable) -- Storable, DynamicStorable)
 makeLenses       ''ComponentVector
 -- Storable1.derive ''ComponentVector
@@ -63,3 +63,8 @@ instance ToList m (Unwrapped (ComponentVector comp layout))
 instance MonadIO m => Data.ShallowDestructor2 m ComponentVector where
     destructShallow2 = Data.destructShallow1 . unwrap
     {-# INLINE destructShallow2 #-}
+
+instance MonadIO m
+      => Storable.KnownSize2 Storable.Dynamic m ComponentVector where
+    size2 = Storable.size @Storable.Dynamic . unwrap
+    {-# INLINE size2 #-}

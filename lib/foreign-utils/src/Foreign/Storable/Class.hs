@@ -71,8 +71,9 @@ type instance ConstantSize t (a ': as) = ConstantSize t a + ConstantSize t as
 
 -- === Class === --
 
-class KnownSize (t :: Type) m a where
-    size :: a -> m Int
+class KnownSize  (t :: Type) m a where size  ::           a       -> m Int
+class KnownSize1 (t :: Type) m a where size1 :: ∀ t1    . a t1    -> m Int
+class KnownSize2 (t :: Type) m a where size2 :: ∀ t1 t2 . a t1 t2 -> m Int
 
 
 -- === Size types === --
@@ -89,6 +90,34 @@ dynamicSize = size @Dynamic ; {-# INLINE dynamicSize #-}
 totalSize   = size @Total   ; {-# INLINE totalSize   #-}
 
 
+-- === Size1 types === --
+
+type KnownStaticSize1  = KnownSize1 Static
+type KnownDynamicSize1 = KnownSize1 Dynamic
+type KnownTotalSize1   = KnownSize1 Total
+
+staticSize1  :: KnownStaticSize1  m a => a t1 -> m Int
+dynamicSize1 :: KnownDynamicSize1 m a => a t1 -> m Int
+totalSize1   :: KnownTotalSize1   m a => a t1 -> m Int
+staticSize1  = size1 @Static  ; {-# INLINE staticSize1  #-}
+dynamicSize1 = size1 @Dynamic ; {-# INLINE dynamicSize1 #-}
+totalSize1   = size1 @Total   ; {-# INLINE totalSize1   #-}
+
+
+-- === Size1 types === --
+
+type KnownStaticSize2  = KnownSize2 Static
+type KnownDynamicSize2 = KnownSize2 Dynamic
+type KnownTotalSize2   = KnownSize2 Total
+
+staticSize2  :: KnownStaticSize2  m a => a t1 t2 -> m Int
+dynamicSize2 :: KnownDynamicSize2 m a => a t1 t2 -> m Int
+totalSize2   :: KnownTotalSize2   m a => a t1 t2 -> m Int
+staticSize2  = size2 @Static  ; {-# INLINE staticSize2  #-}
+dynamicSize2 = size2 @Dynamic ; {-# INLINE dynamicSize2 #-}
+totalSize2   = size2 @Total   ; {-# INLINE totalSize2   #-}
+
+
 -- === Defaults === --
 
 instance {-# OVERLAPPABLE #-}
@@ -103,6 +132,21 @@ instance {-# OVERLAPPABLE #-}
     size = \a -> (+) <$> staticSize a <*> dynamicSize a
     {-# INLINE size #-}
 
+instance {-# OVERLAPPABLE #-}
+    (KnownStaticSize1 m a, KnownDynamicSize1 m a, Applicative m)
+      => KnownSize1 Total m a where
+    size1 = \a -> (+) <$> staticSize1 a <*> dynamicSize1 a
+    {-# INLINE size1 #-}
+
+instance {-# OVERLAPPABLE #-} KnownSize1 t m a
+      => KnownSize t m (a s) where
+    size = size1 @t
+    {-# INLINE size #-}
+
+instance {-# OVERLAPPABLE #-} KnownSize2 t m a
+      => KnownSize1 t m (a s) where
+    size1 = size2 @t
+    {-# INLINE size1 #-}
 
 
 ----------------------

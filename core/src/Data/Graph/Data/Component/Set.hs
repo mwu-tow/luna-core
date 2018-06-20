@@ -9,7 +9,7 @@ import Prologue hiding (FromList, ToList, fromList, toList)
 
 import qualified Data.Construction          as Data
 import qualified Data.Property              as Property
-import qualified Foreign.Storable.Utils     as Storable
+import qualified Foreign.Storable.Class     as Storable
 import qualified Foreign.Storable1.Deriving as Storable1
 
 import Data.Graph.Data.Component.Class (Component)
@@ -25,16 +25,24 @@ import Foreign.Storable (Storable)
 
 -- === Definition === --
 
-newtype ComponentSet tag layout
-    = ComponentSet (SmallSet 16 (Component tag layout))
+type    ComponentSet__ tag layout = SmallSet 0 (Component tag layout)
+newtype ComponentSet   tag layout = ComponentSet (ComponentSet__ tag layout)
     deriving (Show, Storable, Insert m, Remove m, ToList m, Size m)
 
 
 -- === Instances === --
 
-type instance Property.Get Storable.Dynamics (ComponentSet _) = Storable.Dynamic
+-- type instance Property.Get Storable.Dynamics (ComponentSet _) = Storable.Dynamic
 
 type instance Item (ComponentSet tag layout) = Component tag layout
+
+type instance Storable.ConstantSize t (ComponentSet n a)
+            = Storable.ConstantSize t (ComponentSet__ n a)
+
+instance Storable.KnownSize t m (ComponentSet__ n a)
+      => Storable.KnownSize t m (ComponentSet n a) where
+    size = Storable.size @t . unwrap
+    {-# INLINE size #-}
 
 instance (FromList m (Unwrapped (ComponentSet comp layout)), Functor m)
       => FromList m (ComponentSet comp layout) where
@@ -68,6 +76,10 @@ instance MonadIO m => Data.ShallowDestructor2 m ComponentSet where
     destructShallow2 = Data.destruct1 . unwrap
     {-# INLINE destructShallow2 #-}
 
+instance MonadIO m
+      => Storable.KnownSize2 Storable.Dynamic m ComponentSet where
+    size2 = Storable.size @Storable.Dynamic . unwrap
+    {-# INLINE size2 #-}
 
 makeLenses ''ComponentSet
 Storable1.derive ''ComponentSet

@@ -97,42 +97,33 @@ instance {-# OVERLAPPABLE #-}
 
 instance MonadIO m
       => Fold.Builder1 Discovery m (ComponentSet comp) where
-    build1 = \a mi -> mi
-        -- size <- liftIO (DynamicStorable.sizeOf a)
-        -- (Size.ptrRegion %~ (+size)) <$> mi
+    build1 = \a mi -> do
+        size <- Storable.dynamicSize1 a
+        print $ "SET! (" <> show size <> ") = " <> show a
+        (Size.ptrRegion %~ (+size)) <$> mi
     {-# INLINE build1 #-}
-
-instance Monad m => Fold.Builder1 Discovery m (Component tag)
 
 instance MonadIO m
       => Fold.Builder1 Discovery m (ComponentVector comp) where
-    build1 = \a mi -> mi
-        -- size <- liftIO (DynamicStorable.sizeOf a)
-        -- (Size.ptrRegion %~ (+size)) <$> mi
+    build1 = \a mi -> do
+        size <- Storable.dynamicSize1 a
+        (Size.ptrRegion %~ (+size)) <$> mi
     {-# INLINE build1 #-}
 
--- instance (MonadIO m, Storable a, IsPtr a)
---       => Fold.Builder Discovery m (UnmanagedPtrSet a) where
---     build = \a mi -> do
---         size <- liftIO (DynamicStorable.sizeOf a)
---         (Size.dataRegion %~ (+size)) <$> mi
---     {-# INLINE build #-}
-
-instance (Show (SmallVector  n a), MonadIO m, Storable.KnownDynamicSize m (SmallVector n a))
+instance (MonadIO m, Storable.KnownDynamicSize m (SmallVector n a))
       => Fold.Builder Discovery m (SmallVector n a) where
     build = \a mi -> do
-        print $ "<< " <> show a
         size <- Storable.dynamicSize a
         (Size.dataRegion %~ (+size)) <$> mi
     {-# INLINE build #-}
 
 instance {-# OVERLAPPABLE #-}
-    -- (Monad m, Fold.Builder1 (Fold.Struct SizeDiscoveryCfg) m a)
     (Monad m, Fold.Builder1 (Fold.Struct Discovery) m a)
       => Fold.Builder1 Discovery m a where
-    -- build1 = Fold.build1 @(Fold.Struct SizeDiscoveryCfg)
     build1 = Fold.build1 @(Fold.Struct Discovery)
     {-# INLINE build1 #-}
+
+instance Monad m => Fold.Builder1 Discovery m (Component tag)
 
 
 

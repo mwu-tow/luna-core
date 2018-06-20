@@ -288,26 +288,24 @@ test = describe "test" $ it "test" $ runPass' $ do
 
     v <- IR.var "a"
     v2 <- IR.var "a"
-    (vn :: SmallVector 0 IR.Name) <- Mutable.fromList ["foo", "bar", "baz"]
-    print "!!!"
-    print vn
+    vn <- Mutable.fromList ["foo", "bar", "baz"]
 
-    -- print "vvvvvvvvvv"
+    print "vvvvvvvvvv"
     u <- IR.update v vn v
-    -- print "^^^^^^^^^^"
+    print "^^^^^^^^^^"
 
-    -- print $ ": v  = " <> show v
-    -- print $ ": v2 = " <> show v2
-    -- print $ ": u  = " <> show u
+    print $ ": v  = " <> show v
+    print $ ": v2 = " <> show v2
+    print $ ": u  = " <> show u
 
-    -- users <- Layer.read @IR.Users v
-    -- tp    <- Layer.read @IR.Type v
-    -- print $ "tp: " <> show tp
-    -- print =<< PtrSet.toList users
-    -- print =<< PtrSet.size   users
-    -- print "***"
+    users <- Layer.read @IR.Users v
+    tp    <- Layer.read @IR.Type v
+    print $ "tp: " <> show tp
+    print =<< PtrSet.toList users
+    print =<< PtrSet.size   users
+    print "***"
 
-    -- print =<< Size.discoverDynamic v
+    print =<< Size.discoverDynamic v
     print vn
     True `shouldBe` True
 

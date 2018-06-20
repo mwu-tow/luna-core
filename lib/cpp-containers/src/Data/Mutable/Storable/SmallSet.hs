@@ -26,8 +26,8 @@ import System.IO.Unsafe                      (unsafeDupablePerformIO)
 
 -- === Definition === --
 
-type SetImp__ = SmallVector
-newtype SmallSet (n :: Nat) a = SmallSet (SetImp__ n a)
+type SmallSet__ = SmallVector
+newtype SmallSet (n :: Nat) a = SmallSet (SmallSet__ n a)
     deriving (Eq, Ord, NFData, Free m)
 makeLenses ''SmallSet
 
@@ -74,49 +74,57 @@ lookupAndApp__ ffound fmissing s a = go where
 
 -- === API Instances === --
 
-instance (PlacementNew m (SetImp__ n a), Functor m)
+type instance Storable.ConstantSize t (SmallSet n a)
+            = Storable.ConstantSize t (SmallSet__ n a)
+
+instance Storable.KnownSize t m (SmallSet__ n a)
+      => Storable.KnownSize t m (SmallSet n a) where
+    size = Storable.size @t . unwrap
+    {-# INLINE size #-}
+
+instance (PlacementNew m (SmallSet__ n a), Functor m)
       => PlacementNew m (SmallSet n a) where
     placementNew = fmap wrap . placementNew . coerce
     {-# INLINE placementNew #-}
 
-instance (New m (SetImp__ n a), Functor m)
+instance (New m (SmallSet__ n a), Functor m)
       => New m (SmallSet n a) where
     new = wrap <$> new
     {-# INLINE new #-}
 
-instance Size m (SetImp__ n a)
+instance Size m (SmallSet__ n a)
       => Size m (SmallSet n a) where
     size = size . unwrap
     {-# INLINE size #-}
 
-instance Capacity m (SetImp__ n a)
+instance Capacity m (SmallSet__ n a)
       => Capacity m (SmallSet n a) where
     capacity = capacity . unwrap
     {-# INLINE capacity #-}
 
-instance Read m (SetImp__ n a)
+instance Read m (SmallSet__ n a)
       => Read m (SmallSet n a) where
     unsafeRead = unsafeRead . unwrap
     {-# INLINE unsafeRead #-}
 
-instance (InsertAt m (SetImp__ n a), LookupAndApp m n a)
+instance (InsertAt m (SmallSet__ n a), LookupAndApp m n a)
       => Insert m (SmallSet n a) where
     insert = \a v -> lookupAndApp (\_ -> pure ())
                      (\ix -> insertAt (unwrap a) ix v) a v
     {-# INLINE insert #-}
 
-instance (RemoveAt m (SetImp__ n a), LookupAndApp m n a)
+instance (RemoveAt m (SmallSet__ n a), LookupAndApp m n a)
       => Remove m (SmallSet n a) where
     remove = \a v -> lookupAndApp (removeAt (unwrap a))
                      (\_ -> pure ()) a v
     {-# INLINE remove #-}
 
-instance (FromList m (SetImp__ n a), Functor m)
+instance (FromList m (SmallSet__ n a), Functor m)
       => FromList m (SmallSet n a) where
     fromList = fmap wrap . fromList
     {-# INLINE fromList #-}
 
-instance ToList m (SetImp__ n a)
+instance ToList m (SmallSet__ n a)
       => ToList m (SmallSet n a) where
     toList = toList . unwrap
     {-# INLINE toList #-}
@@ -125,19 +133,19 @@ instance ToList m (SetImp__ n a)
 
 -- === Debug Instances === --
 
-instance Show (SetImp__ n a)
+instance Show (SmallSet__ n a)
       => Show (SmallSet n a) where
     show = show . unwrap
 
 
 -- === Deprecated Instances === --
 
-deriving instance StdStorable.Storable (SetImp__ n a)
+deriving instance StdStorable.Storable (SmallSet__ n a)
     => StdStorable.Storable (SmallSet n a)
 
 -- WARNING: this instance is strange. It does not release self-memory,
 --          because it is used for placement-new objects
-instance (Data.Destructor1 m (SetImp__ n), Monad m)
+instance (Data.Destructor1 m (SmallSet__ n), Monad m)
       => Data.Destructor1 m (SmallSet n) where
     destruct1 = Data.destruct1 . unwrap
     {-# INLINE destruct1 #-}
