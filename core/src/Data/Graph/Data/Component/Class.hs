@@ -125,9 +125,8 @@ instance Monad m => Data.ShallowDestructor1 m (Component comp) where
 
 -- === Storable === --
 
-instance Storable.KnownStaticSize t (Component tag layout) where
-    staticSize = Storable.stdSizeOf @(Component tag layout)
-    {-# INLINE staticSize #-}
+type instance Storable.ConstantSize t (Component tag layout)
+            = Storable.ConstantSize t (Unwrapped (Component tag layout))
 
 instance MonadIO m => Storable.Peek Storable.View m (Component tag layout)
 instance MonadIO m => Storable.Poke Storable.View m (Component tag layout)

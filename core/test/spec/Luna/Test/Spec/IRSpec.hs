@@ -308,7 +308,7 @@ test = describe "test" $ it "test" $ runPass' $ do
 spec :: Spec
 spec = do
 
-    -- testVec
+-- testVec
     -- testSet
     test
     nameSpec

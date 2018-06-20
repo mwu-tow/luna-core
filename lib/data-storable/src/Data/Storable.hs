@@ -18,35 +18,6 @@ import Type.Data.Semigroup    (type (<>))
 
 
 
--- ----------------------
--- -- === ByteSize === --
--- ----------------------
-
--- -- === Definition === --
-
--- type family ByteSize t (a :: k) :: Nat
-
-
--- -- === API === --
-
--- type KnownByteSize t a = Type.KnownInt (ByteSize t a)
--- size :: ∀ t a. KnownByteSize t a => Int
--- size = Type.val' @(ByteSize t a)
--- {-# INLINE size #-}
-
--- type family SumByteSizes t (ls :: [k]) where
---     SumByteSizes t '[]       = 0
---     SumByteSizes t (a ': as) = ByteSize t a + ByteSize t as
-
-
--- -- === Instances === --
-
--- type instance ByteSize t (a :: [k]) = SumByteSizes t a
--- type instance ByteSize _ Int     = 8
--- type instance ByteSize _ (Ptr _) = 8
-
-
-
 -------------------
 -- === Field === --
 -------------------
@@ -59,14 +30,6 @@ data FieldRef (name :: Symbol) = FieldRef deriving (Show)
 field :: ∀ name. FieldRef name
 field = FieldRef
 {-# INLINE field #-}
-
-
--- === API === --
-
-type KnownFieldSize a = Storable.KnownStaticSize Field a
-fieldSize :: ∀ a. KnownFieldSize a => Int
-fieldSize = Storable.staticSize @Field @a
-{-# INLINE fieldSize #-}
 
 
 -- === Field signature === --
@@ -85,9 +48,8 @@ type family MapFieldSigName fields where
     MapFieldSigName (f ': fs) = FieldSigName f ': MapFieldSigName fs
     MapFieldSigName '[]       = '[]
 
-instance Storable.KnownStaticSize t a
-      => Storable.KnownStaticSize t ('FieldSig n a) where
-    staticSize = Storable.staticSize @t @a
+type instance Storable.ConstantSize t ('FieldSig n a)
+            = Storable.ConstantSize t a
 
 
 -- === FieldType === --
@@ -124,18 +86,11 @@ instance IsStruct (Struct fields) where
     struct = id ; {-# INLINE struct #-}
 
 
--- === Helpers === --
-
--- type StructByteSize      a = ByteSize Field a
--- type KnownStructByteSize a = Type.KnownInt (StructByteSize a)
-
--- structByteSize :: ∀ a. KnownStructByteSize a => Int
--- structByteSize = Type.val' @(StructByteSize a)
--- {-# INLINE structByteSize #-}
-
-
 -- === Instances === --
 makeLenses ''Struct
+
+type instance Storable.ConstantSize t (Struct fields)
+            = Storable.ConstantSize t (MapFieldSigType fields)
 
 
 
@@ -199,10 +154,10 @@ class HasField__ (name :: Symbol) (fs :: [FieldSig]) (idx :: Maybe Nat) where
 
 instance
     ( fields' ~ List.Take idx (MapFieldSigType fields)
-    , Storable.KnownStaticSize Field fields'
+    , Storable.KnownConstantStaticSize fields'
     ) => HasField__ name fields ('Just idx) where
     fieldPtr__ = \(Struct !ptr) ->
-        let off = Storable.staticSize @Field @fields'
+        let off = Storable.constantStaticSize @fields'
         in  ptr `plusPtr` off
     {-# INLINE fieldPtr__ #-}
 
@@ -269,20 +224,20 @@ class Cons__ a types where
 
 instance
     ( Cons__ fields fs
-    , KnownFieldSize f
+    , Storable.KnownConstantStaticSize f
     , Storable.Poke Field IO f
     ) => Cons__ fields (f ': fs) where
     cons__ = \alloc f a -> cons__ @fields @fs alloc $ \ptr ->
         let (!m, !ptr') = f ptr
             f'          = m >> Storable.poke @Field (coerce ptr') a
-            ptr''       = ptr' `plusPtr` fieldSize @f
+            ptr''       = ptr' `plusPtr` Storable.constantStaticSize @f
         in  (f', ptr'')
     {-# INLINE cons__ #-}
 
-instance (IsStruct a, Storable.KnownStaticSize Field (Fields a))
+instance (IsStruct a, Storable.KnownConstantStaticSize (Fields a))
       => Cons__ a '[] where
     cons__ = \alloc f -> do
-        ptr <- alloc $! Storable.staticSize @Field @(Fields a)
+        ptr <- alloc $! Storable.constantStaticSize @(Fields a)
         let (!m, !_) = f ptr
         (Struct ptr ^. from struct) <$ m
     {-# INLINE cons__ #-}

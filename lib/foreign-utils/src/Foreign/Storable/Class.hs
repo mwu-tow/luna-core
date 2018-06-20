@@ -4,64 +4,104 @@
 
 module Foreign.Storable.Class where
 
+#include "MachDeps.h"
+#include "HsBaseConfig.h"
+
 import Prologue
 
 import qualified Foreign.Storable as Storable
 import qualified Type.Known       as Type
 
-import Foreign.Ptr (Ptr, plusPtr)
+import Foreign.Ptr       (FunPtr, Ptr, plusPtr)
+import Foreign.StablePtr (StablePtr)
 
 
 
-------------------
--- === Size === --
-------------------
+------------------------
+-- === Size types === --
+------------------------
 
--- === Definition === --
+data Static
+data Dynamic
+data Total
 
-type family Size (t :: Type) (a :: k) :: Nat
+
+
+-------------------------------
+-- === KnownConstantSize === --
+-------------------------------
+
+-- === Class == --
+
+type family ConstantSize (t :: Type) (a :: k) :: Nat
 
 
 -- === API === --
 
-class KnownStaticSize t (a :: k) where
-    staticSize :: Int
+type KnownConstantSize        t a = Type.KnownInt (ConstantSize t a)
+type KnownConstantStaticSize    a = KnownConstantSize Static  a
+type KnownConstantDynamicSize   a = KnownConstantSize Dynamic a
+type KnownConstantTotalSize     a = KnownConstantSize Total   a
 
-class KnownDynamicSize t (a :: k) m where
-    dynamicSize :: m Int
+constantSize :: ∀ (t :: Type) a. KnownConstantSize t a => Int
+constantSize = Type.val' @(ConstantSize t a)
+{-# INLINE constantSize #-}
 
-    default dynamicSize :: (Monad m, KnownStaticSize t a) => m Int
-    dynamicSize = pure $! staticSize @t @a
-    {-# INLINE dynamicSize #-}
+constantStaticSize  :: ∀ a. KnownConstantStaticSize  a => Int
+constantDynamicSize :: ∀ a. KnownConstantDynamicSize a => Int
+constantTotalSize   :: ∀ a. KnownConstantTotalSize   a => Int
+constantStaticSize  = constantSize @Static  @a
+constantDynamicSize = constantSize @Dynamic @a
+constantTotalSize   = constantSize @Total   @a
+{-# INLINE constantStaticSize  #-}
+{-# INLINE constantDynamicSize #-}
+{-# INLINE constantTotalSize   #-}
 
 
--- === Utils === --
+-- === Instances === --
 
-stdSizeOf :: ∀ a. Storable.Storable a => Int
-stdSizeOf = Storable.sizeOf (undefined :: a)
-{-# INLINE stdSizeOf #-}
+type instance ConstantSize t '[]       = 0
+type instance ConstantSize t (a ': as) = ConstantSize t a + ConstantSize t as
 
 
--- === Default instances for list of types === --
 
-instance KnownStaticSize t '[] where
-    staticSize = 0
-    {-# INLINE staticSize #-}
+-----------------------
+-- === KnownSize === --
+-----------------------
 
-instance (KnownStaticSize t a, KnownStaticSize t as)
-      => KnownStaticSize t (a ': as) where
-    staticSize = staticSize @t @a + staticSize @t @as
-    {-# INLINE staticSize #-}
+-- === Class === --
 
-instance Applicative m
-      => KnownDynamicSize t '[] m where
-    dynamicSize = pure 0
-    {-# INLINE dynamicSize #-}
+class KnownSize (t :: Type) m a where
+    size :: a -> m Int
 
-instance (KnownDynamicSize t a m, KnownDynamicSize t as m, Applicative m)
-      => KnownDynamicSize t (a ': as) m where
-    dynamicSize = (+) <$> dynamicSize @t @a <*> dynamicSize @t @as
-    {-# INLINE dynamicSize #-}
+
+-- === Size types === --
+
+type KnownStaticSize  = KnownSize Static
+type KnownDynamicSize = KnownSize Dynamic
+type KnownTotalSize   = KnownSize Total
+
+staticSize  :: KnownStaticSize  m a => a -> m Int
+dynamicSize :: KnownDynamicSize m a => a -> m Int
+totalSize   :: KnownTotalSize   m a => a -> m Int
+staticSize  = size @Static  ; {-# INLINE staticSize  #-}
+dynamicSize = size @Dynamic ; {-# INLINE dynamicSize #-}
+totalSize   = size @Total   ; {-# INLINE totalSize   #-}
+
+
+-- === Defaults === --
+
+instance {-# OVERLAPPABLE #-}
+    (KnownConstantSize Static a, Applicative m)
+      => KnownSize Static m a where
+    size = \_ -> pure $ constantStaticSize @a
+    {-# INLINE size #-}
+
+instance {-# OVERLAPPABLE #-}
+    (KnownStaticSize m a, KnownDynamicSize m a, Applicative m)
+      => KnownSize Total m a where
+    size = \a -> (+) <$> staticSize a <*> dynamicSize a
+    {-# INLINE size #-}
 
 
 
@@ -91,15 +131,15 @@ class Poke t m a where
 
 -- === API === --
 
-type StaticPeek t m a = (Peek t m a, KnownStaticSize t a)
-type StaticPoke t m a = (Poke t m a, KnownStaticSize t a)
+type StaticPeek t m a = (Peek t m a, KnownConstantSize Static a)
+type StaticPoke t m a = (Poke t m a, KnownConstantSize Static a)
 
 peekByteOff :: ∀ t m a. Peek t m a       => Ptr a -> Int -> m a
 pokeByteOff :: ∀ t m a. Poke t m a       => Ptr a -> Int -> a -> m ()
 peekElemOff :: ∀ t m a. StaticPeek t m a => Ptr a -> Int -> m a
 pokeElemOff :: ∀ t m a. StaticPoke t m a => Ptr a -> Int -> a -> m ()
-peekElemOff = \ptr i -> peekByteOff @t ptr (i * staticSize @t @a)
-pokeElemOff = \ptr i -> pokeByteOff @t ptr (i * staticSize @t @a)
+peekElemOff = \ptr i -> peekByteOff @t ptr (i * constantStaticSize @a)
+pokeElemOff = \ptr i -> pokeByteOff @t ptr (i * constantStaticSize @a)
 peekByteOff = peek @t .: plusPtr
 pokeByteOff = poke @t .: plusPtr
 {-# INLINE peekByteOff #-}
@@ -111,22 +151,27 @@ pokeByteOff = poke @t .: plusPtr
 
 -- === Standard Instances === --
 
-#define STORABLE(tp) \
-instance MonadIO m => Peek t m (tp)                        ; \
-instance MonadIO m => Poke t m (tp)                        ; \
-instance {-# OVERLAPPABLE #-} KnownStaticSize t (tp) where { \
-    staticSize = stdSizeOf @(tp)                           ; \
-    {-# INLINE staticSize #-}                              }
+#define STORABLE(tp,size,aligment) \
+instance MonadIO m => Peek t m (tp) ; \
+instance MonadIO m => Poke t m (tp) ; \
+type instance ConstantSize Static (tp) = size
 
-STORABLE(())
-STORABLE(Char)
-STORABLE(Int)
-STORABLE(Word8)
-STORABLE(Word16)
-STORABLE(Word32)
-STORABLE(Word64)
-STORABLE(Ptr a)
-
+STORABLE(Char,SIZEOF_INT32,ALIGNMENT_INT32)
+STORABLE(Int,SIZEOF_HSINT,ALIGNMENT_HSINT)
+STORABLE(Word,SIZEOF_HSWORD,ALIGNMENT_HSWORD)
+STORABLE((Ptr a),SIZEOF_HSPTR,ALIGNMENT_HSPTR)
+STORABLE((FunPtr a),SIZEOF_HSFUNPTR,ALIGNMENT_HSFUNPTR)
+STORABLE((StablePtr a),SIZEOF_HSSTABLEPTR,ALIGNMENT_HSSTABLEPTR)
+STORABLE(Float,SIZEOF_HSFLOAT,ALIGNMENT_HSFLOAT)
+STORABLE(Double,SIZEOF_HSDOUBLE,ALIGNMENT_HSDOUBLE)
+STORABLE(Word8,SIZEOF_WORD8,ALIGNMENT_WORD8)
+STORABLE(Word16,SIZEOF_WORD16,ALIGNMENT_WORD16)
+STORABLE(Word32,SIZEOF_WORD32,ALIGNMENT_WORD32)
+STORABLE(Word64,SIZEOF_WORD64,ALIGNMENT_WORD64)
+STORABLE(Int8,SIZEOF_INT8,ALIGNMENT_INT8)
+STORABLE(Int16,SIZEOF_INT16,ALIGNMENT_INT16)
+STORABLE(Int32,SIZEOF_INT32,ALIGNMENT_INT32)
+STORABLE(Int64,SIZEOF_INT64,ALIGNMENT_INT64)
 
 
 ----------------------------

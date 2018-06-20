@@ -46,10 +46,13 @@ unsafeNullMemChunk = wrap nullPtr
 
 -- === Instances === --
 
-instance (Storable.KnownStaticSize t a, Type.KnownInt n)
-      => Storable.KnownStaticSize t (MemChunk n a) where
-    staticSize = Type.val' @n * Storable.staticSize @t @a
-    {-# INLINE staticSize #-}
+type instance Storable.ConstantSize Storable.Static (MemChunk n a)
+            = Storable.ConstantSize Storable.Static a * n
+
+-- instance (Storable.KnownStaticSize a, Type.KnownInt n)
+--       => Storable.KnownSize Storable.Static (MemChunk n a) where
+--     size = Type.val' @n * Storable.staticSize @a
+--     {-# INLINE size #-}
 
 instance Applicative m
       => Storable.Peek t m (MemChunk n a) where
@@ -64,7 +67,8 @@ instance Applicative m
 
 -- === Definition === --
 
-newtype SmallVector (n :: Nat) a = SmallVector (Struct (Layout n a))
+type    SmallVector__ (n :: Nat) a = Struct (Layout n a)
+newtype SmallVector   (n :: Nat) a = SmallVector (SmallVector__ n a)
     deriving (Eq, Ord, NFData)
 
 type Layout n a =
@@ -100,16 +104,29 @@ elemsPtr = \a -> do
     pure $ localMemPtr `plusPtr` offset
 {-# INLINE elemsPtr #-}
 
+usesDynamicMemory :: MonadIO m => SmallVector n a -> m Bool
+usesDynamicMemory = fmap (/= 0) . Struct.readField _offset
+{-# INLINE usesDynamicMemory #-}
+
 
 -- === API Instances === --
 
-instance (Type.KnownInt n, Storable.KnownStaticSize t a)
-      => Storable.KnownStaticSize t (SmallVector n a) where
-    staticSize = Storable.staticSize @t @Int                -- length
-               + Storable.staticSize @t @Int                -- capacity
-               + Storable.staticSize @t @Int                -- ptrOff
-               + (Storable.staticSize @t @a * Type.val' @n) -- elems
-    {-# INLINE staticSize #-}
+-- instance (Type.KnownInt n, Storable.KnownStaticSize t a)
+--       => Storable.KnownStaticSize t (SmallVector n a) where
+--     staticSize = Storable.staticSize @t @Int                -- length
+--                + Storable.staticSize @t @Int                -- capacity
+--                + Storable.staticSize @t @Int                -- ptrOff
+--                + (Storable.staticSize @t @a * Type.val' @n) -- elems
+--     {-# INLINE staticSize #-}
+type instance Storable.ConstantSize t (SmallVector n a)
+            = Storable.ConstantSize t (SmallVector__ n a)
+
+instance MonadIO m
+      => Storable.KnownSize Storable.Dynamic m (SmallVector n a) where
+    size = \a -> usesDynamicMemory a >>= \case
+        True  -> size a
+        False -> pure 0
+    {-# INLINE size #-}
 
 instance (MonadIO m, Type.KnownInt n)
       => PlacementNew m (SmallVector n a) where
@@ -123,12 +140,12 @@ instance (MonadIO m, Type.KnownInt n)
 
 instance
     ( MonadIO m
-    , Storable.KnownStaticSize Copy (SmallVector n a)
+    , Storable.KnownConstantStaticSize (SmallVector n a)
     , Type.KnownInt n
     ) => New m (SmallVector n a) where
     new = do
         ptr <- liftIO . Mem.mallocBytes
-             $ Storable.staticSize @Copy @(SmallVector n a)
+             $ Storable.constantStaticSize @(SmallVector n a)
         placementNew ptr
     {-# INLINE new #-}
 
@@ -145,9 +162,9 @@ instance MonadIO m
 instance MonadIO m
       => Free m (SmallVector n a) where
     free = \a -> liftIO $ do
-        offset <- Struct.readField _offset a
-        when (offset /= 0) $ do
+        whenM (usesDynamicMemory a) $ do
             let localMemPtr = Struct.fieldPtr _localMem a
+            offset <- Struct.readField _offset a
             Mem.free $ localMemPtr `plusPtr` offset
         Struct.free a
     {-# INLINE free #-}
@@ -181,23 +198,22 @@ instance (New m (SmallVector n a), Write m (SmallVector n a), Monad m)
         pure a
     {-# INLINE fromList #-}
 
-instance (MonadIO m, Storable.KnownStaticSize View a)
+instance (MonadIO m, Storable.KnownConstantStaticSize a)
       => Grow m (SmallVector n a) where
     grow = \a -> do
         oldCapacity <- capacity a
         elemCount   <- size     a
         ptr         <- elemsPtr a
-        offset      <- Struct.readField _offset a
         let newSize       = oldCapacity * 2
-            elemByteSize  = Storable.staticSize @View @a
+            elemByteSize  = Storable.constantStaticSize @a
             bytesToMalloc = elemByteSize * newSize
             bytesToCopy   = elemByteSize * elemCount
             localMemPtr   = Struct.fieldPtr _localMem a
         newElemsPtr <- liftIO $ Mem.mallocBytes bytesToMalloc
         liftIO $ Mem.copyBytes newElemsPtr ptr bytesToCopy
-        when (offset /= 0) $
+        whenM (usesDynamicMemory a) $
             liftIO (Mem.free ptr)
-        Struct.writeField _capacity   a newSize
+        Struct.writeField _capacity a newSize
         Struct.writeField _offset a $! newElemsPtr `minusPtr` localMemPtr
     {-# INLINE grow #-}
 
@@ -215,14 +231,14 @@ instance
     ( MonadIO m
     , Grow  m (SmallVector n a)
     , Write m (SmallVector n a)
-    , Storable.KnownStaticSize View a
+    , Storable.KnownConstantStaticSize a
     ) => InsertAt m (SmallVector n a) where
     insertAt = \a ix v -> do
         siz <- size     a
         cap <- capacity a
         when (siz == cap) $ grow a
         ptr0 <- elemsPtr a
-        let elSize  = Storable.staticSize @View @a
+        let elSize  = Storable.constantStaticSize @a
             ptrIx   = ptr0  `plusPtr` (elSize * ix)
             ptrIx'  = ptrIx `plusPtr` elSize
             byteOff = elSize * (siz - ix)
@@ -233,12 +249,12 @@ instance
 
 instance
     ( MonadIO m
-    , Storable.KnownStaticSize View a
+    , Storable.KnownConstantStaticSize a
     ) => RemoveAt m (SmallVector n a) where
     removeAt = \a ix -> do
         siz  <- size a
         ptr0 <- elemsPtr a
-        let elSize  = Storable.staticSize @View @a
+        let elSize  = Storable.constantStaticSize @a
             ptrIx   = ptr0  `plusPtr` (elSize * ix)
             ptrIx'  = ptrIx `plusPtr` elSize
             byteOff = elSize * (siz - ix - 1)
@@ -255,10 +271,10 @@ instance Applicative m
     peek = pure . coerce
     {-# INLINE peek #-}
 
-instance (MonadIO m, Storable.KnownStaticSize View (SmallVector n a))
+instance (MonadIO m, Storable.KnownConstantStaticSize (SmallVector n a))
       => Storable.Poke View m (SmallVector n a) where
     poke = \ptr a ->
-        let size = Storable.staticSize @View @(SmallVector n a)
+        let size = Storable.constantStaticSize @(SmallVector n a)
         in  liftIO $ Mem.copyBytes (coerce a) ptr size
     {-# INLINE poke #-}
 
@@ -280,11 +296,12 @@ instance (Show a, ToList IO (SmallVector n a))
 type instance Property.Get Dynamics (SmallVector n a) = Dynamic
 
 instance
-    ( Storable.Peek View IO a, Storable.KnownStaticSize View a
+    ( Storable.Peek View IO a
+    , Storable.KnownConstantStaticSize (SmallVector n a)
     , Storable View IO (SmallVector n a)
     , Type.KnownInt n
     ) => StdStorable.Storable (SmallVector n a) where
-    sizeOf    = \ ~_ -> Storable.staticSize @View @(SmallVector n a)
+    sizeOf    = \ ~_ -> Storable.constantStaticSize @(SmallVector n a)
     alignment = \ ~_ -> StdStorable.alignment (undefined :: Int)
     peek      = Storable.peek @View
     poke      = Storable.poke @View
@@ -296,8 +313,8 @@ instance
 instance MonadIO m
       => Data.Destructor1 m (SmallVector n) where
     destruct1 = \a -> liftIO $ do
-        offset <- Struct.readField _offset a
-        when (offset /= 0) $ do
+        whenM (usesDynamicMemory a) $ do
             let localMemPtr = Struct.fieldPtr _localMem a
+            offset <- Struct.readField _offset a
             Mem.free $ localMemPtr `plusPtr` offset
     {-# INLINE destruct1 #-}
