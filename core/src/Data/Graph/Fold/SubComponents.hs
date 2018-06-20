@@ -69,6 +69,13 @@ instance Fold.Builder (Fold.Scoped (Discovery comp)) m
 
 instance Monad m => Fold.ComponentBuilder (Discovery comp) m comp'
 
+instance {-# OVERLAPPABLE #-}
+    (Monad m, Fold.Builder1 (Discovery comp) m (Layer.Cons layer))
+      => Fold.LayerBuilder (Discovery comp) m layer where
+    layerBuild = Fold.build1 @(Discovery comp)
+    {-# INLINE layerBuild #-}
+
+
 -- === API === --
 
 type SubComponents1 c m comp

@@ -90,6 +90,7 @@ instance
     , Fold.Builder1 t m (ComponentSet    Link.Edges)
     , Fold.Builder  t m (SmallVector 16 Word8)
     , Fold.Builder  t m (SmallVector 16 Char)
+    , Fold.Builder  t m (SmallVector 16 Name) -- x
     , Fold.Builder  t m (Term.List Name)
     ) => Fold.Builder1 (Fold.Struct t) m UniTerm where
     build1 = gbuildFold__ @t
@@ -139,10 +140,11 @@ instance Fold.Builder t m (Vector a)
     build = Fold.build @t
     {-# INLINE build #-}
 
-instance Fold.Builder t m (Term.List a)
-      => Fold.Builder (UniTermFold t) m (Term.List a) where
+instance Fold.Builder t m (SmallVector n a)
+      => Fold.Builder (UniTermFold t) m (SmallVector n a) where
     build = Fold.build @t
     {-# INLINE build #-}
+
 
 
 -- ------------------------------

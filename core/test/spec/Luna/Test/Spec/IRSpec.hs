@@ -195,10 +195,12 @@ testVec :: Spec
 testVec = describe "test" $ it "vec" $ do
     print ""
     (print "--- vec ---" :: IO ())
-    (a :: SmallVector 2 Int) <- Mutable.new
+    (a :: SmallVector 0 Int) <- Mutable.new
+    print =<< SmallVector.elemsPtr a
     print =<< Mutable.size a
     Mutable.pushBack a 8
     print "--"
+    print a
     print =<< SmallVector.elemsPtr a
     print =<< Mutable.size a
     print =<< Mutable.capacity a
@@ -286,29 +288,33 @@ test = describe "test" $ it "test" $ runPass' $ do
 
     v <- IR.var "a"
     v2 <- IR.var "a"
-    vn <- SmallVector.fromList ["foo", "bar", "baz"]
+    (vn :: SmallVector 0 IR.Name) <- Mutable.fromList ["foo", "bar", "baz"]
+    print "!!!"
+    print vn
 
-    print "vvvvvvvvvv"
+    -- print "vvvvvvvvvv"
     u <- IR.update v vn v
-    print "^^^^^^^^^^"
+    -- print "^^^^^^^^^^"
 
-    print $ ": v  = " <> show v
-    print $ ": v2 = " <> show v2
-    print $ ": u  = " <> show u
+    -- print $ ": v  = " <> show v
+    -- print $ ": v2 = " <> show v2
+    -- print $ ": u  = " <> show u
 
-    users <- Layer.read @IR.Users v
-    tp    <- Layer.read @IR.Type v
-    print $ "tp: " <> show tp
-    print =<< PtrSet.toList users
-    print =<< PtrSet.size   users
-    print "***"
-    -- print =<< Size.discover u
+    -- users <- Layer.read @IR.Users v
+    -- tp    <- Layer.read @IR.Type v
+    -- print $ "tp: " <> show tp
+    -- print =<< PtrSet.toList users
+    -- print =<< PtrSet.size   users
+    -- print "***"
+
+    -- print =<< Size.discoverDynamic v
+    print vn
     True `shouldBe` True
 
 spec :: Spec
 spec = do
 
--- testVec
+    testVec
     -- testSet
     test
     nameSpec

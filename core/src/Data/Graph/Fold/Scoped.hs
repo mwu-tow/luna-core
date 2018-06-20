@@ -57,8 +57,8 @@ type family EnabledLayer__ t layer where
 -- === Definition === --
 
 data Scoped t
-type instance Fold.Result(Scoped t) = Fold.Result t
-type instance LayerScope (Scoped t) = LayerScope  t
+type instance Fold.Result (Scoped t) = Fold.Result t
+type instance LayerScope  (Scoped t) = LayerScope  t
 
 class Monad m => LayerBuilder t m layer where
     layerBuild :: ∀ layout. Layer.Cons layer layout -> m (Fold.Result t) -> m (Fold.Result t)
@@ -71,10 +71,10 @@ class Monad m => ComponentBuilder t m comp where
 
 -- === Defaults === --
 
-instance {-# OVERLAPPABLE #-} (Monad m, Fold.Builder1 t m (Layer.Cons layer))
-      => LayerBuilder t m layer where
-    layerBuild = Fold.build1 @t
-    {-# INLINE layerBuild #-}
+-- instance {-# OVERLAPPABLE #-} (Monad m, Fold.Builder1 t m (Layer.Cons layer))
+--       => LayerBuilder t m layer where
+--     layerBuild = Fold.build1 @t
+--     {-# INLINE layerBuild #-}
 
 
 -- === Instances === --

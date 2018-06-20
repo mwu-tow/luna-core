@@ -121,10 +121,10 @@ usesDynamicMemory = fmap (/= 0) . Struct.readField _offset
 type instance Storable.ConstantSize t (SmallVector n a)
             = Storable.ConstantSize t (SmallVector__ n a)
 
-instance MonadIO m
+instance (MonadIO m, Storable.KnownConstantStaticSize a)
       => Storable.KnownSize Storable.Dynamic m (SmallVector n a) where
     size = \a -> usesDynamicMemory a >>= \case
-        True  -> size a
+        True  -> (Storable.constantStaticSize @a *) <$> size a
         False -> pure 0
     {-# INLINE size #-}
 
@@ -190,11 +190,11 @@ instance (MonadIO m, Storable.StaticPeek View m a)
         mapM (unsafeRead a) [0 .. len - 1]
     {-# INLINE toList #-}
 
-instance (New m (SmallVector n a), Write m (SmallVector n a), Monad m)
+instance (Monad m, New m (SmallVector n a), PushBack m (SmallVector n a))
       => FromList m (SmallVector n a) where
     fromList = \lst -> do
         a <- new
-        mapM_ (uncurry $ unsafeWrite a) $ zip [0 ..] lst
+        mapM_ (pushBack a) lst
         pure a
     {-# INLINE fromList #-}
 
@@ -204,7 +204,7 @@ instance (MonadIO m, Storable.KnownConstantStaticSize a)
         oldCapacity <- capacity a
         elemCount   <- size     a
         ptr         <- elemsPtr a
-        let newSize       = oldCapacity * 2
+        let newSize       = if oldCapacity == 0 then 16 else oldCapacity * 2
             elemByteSize  = Storable.constantStaticSize @a
             bytesToMalloc = elemByteSize * newSize
             bytesToCopy   = elemByteSize * elemCount
@@ -271,11 +271,14 @@ instance Applicative m
     peek = pure . coerce
     {-# INLINE peek #-}
 
-instance (MonadIO m, Storable.KnownConstantStaticSize (SmallVector n a))
+instance (MonadIO m, Storable.KnownConstantStaticSize (SmallVector n a), Show (SmallVector n a))
       => Storable.Poke View m (SmallVector n a) where
     poke = \ptr a ->
         let size = Storable.constantStaticSize @(SmallVector n a)
-        in  liftIO $ Mem.copyBytes (coerce a) ptr size
+        in do
+            print ("POKE " <> show a <> ": " <> show size)
+            liftIO $ Mem.copyBytes ptr (coerce a) size
+
     {-# INLINE poke #-}
 
 instance MonadIO m => Data.ShallowDestructor1 m (SmallVector n) where

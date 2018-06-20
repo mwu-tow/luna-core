@@ -45,7 +45,7 @@ import OCI.IR.Term.Class                     (Term)
 data LinkTo  t
 data LinksTo t -- = List (LinkTo t)
 
-type List = SmallVector 16
+type List = SmallVector 0
 
 -- | 'Field' is a typeclass which unifies how fields of smart cons get
 --   constructed. It's created only to make the generated code shorter and
