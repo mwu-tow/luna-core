@@ -17,8 +17,9 @@ import qualified Foreign.Marshal.Utils            as Mem
 import qualified Foreign.Storable                 as StdStorable
 import qualified Foreign.Storable.Class           as Storable
 import qualified Type.Known                       as Type
+import qualified Data.Convert2.Class as Convert
 
-import Data.Storable          (type (-::), Struct)
+import Data.Storable          (type (-::), UnmanagedStruct)
 import Foreign.Ptr            (Ptr, minusPtr, nullPtr, plusPtr)
 import Foreign.Storable.Class (Copy, Storable, View)
 import Foreign.Storable.Utils (Dynamic, Dynamics)
@@ -67,7 +68,7 @@ instance Applicative m
 
 -- === Definition === --
 
-type    SmallVector__ (n :: Nat) a = Struct (Layout n a)
+type    SmallVector__ (n :: Nat) a = UnmanagedStruct (Layout n a)
 newtype SmallVector   (n :: Nat) a = SmallVector (SmallVector__ n a)
     deriving (Eq, Ord, NFData)
 
@@ -81,6 +82,7 @@ makeLenses ''SmallVector
 
 type instance Item (SmallVector n a) = a
 instance Struct.IsStruct (SmallVector n a)
+type instance Struct.Management (SmallVector n a) = 'Struct.Unmanaged
 
 
 -- === Fields === --
@@ -131,7 +133,7 @@ instance (MonadIO m, Storable.KnownConstantStaticSize a)
 instance (MonadIO m, Type.KnownInt n)
       => PlacementNew m (SmallVector n a) where
     placementNew = \ptr -> liftIO $ do
-        let a = Struct.unsafeCastFromPtr ptr
+        let a = Struct.unsafeCastFromPtr (Convert.convert (coerce ptr :: Ptr ()))
         Struct.writeField _length a 0
         Struct.writeField _capacity a $! Type.val' @n
         Struct.writeField _externalMem a nullPtr
