@@ -4,16 +4,19 @@ module Data.Graph.Store.Alloc where
 
 import Prologue
 
--- import qualified Data.Graph.Data.Component.Class as Component
--- import qualified Data.Graph.Data.Component.List  as ComponentList
--- import qualified Data.Graph.Fold.Partition       as Partition
+import qualified Data.Graph.Data.Component.Class as Component
+import qualified Data.Graph.Data.Component.List  as ComponentList
+import qualified Data.Graph.Fold.Partition       as Partition
+import qualified Data.Graph.Store.Size.Discovery as Size
+import qualified Data.TypeMap.Strict             as TypeMap
+import qualified Foreign.Storable.Class          as Storable
 -- import qualified Data.Graph.Store.External       as External
 -- import qualified Data.Graph.Store.Size           as Size
--- import qualified Data.TypeMap.Strict             as TypeMap
 -- import qualified Foreign.Info.ByteSize           as ByteSize
 
 -- import Data.Graph.Data.Component.Class (Component)
--- import Data.Graph.Data.Component.List  (ComponentList, ComponentLists)
+import Data.Graph.Data.Component.List (ComponentList, ComponentLists)
+import Data.Graph.Store.Size.Class    (DynamicSize, Size (Size))
 -- import Data.Graph.Store.MemoryRegion   (MemoryRegion (MemoryRegion))
 -- import Data.Graph.Store.Size           (Size)
 -- import Foreign.ForeignPtr.Utils        (mallocForeignPtrBytes, plusForeignPtr)
@@ -82,38 +85,77 @@ import Prologue
 -- {-# INLINE componentSize #-}
 
 
--- -- === Cluster size discovery === --
+-- === Cluster size discovery === --
 
--- type ClusterSizeDiscovery comps m = ClusterSizeBuilder comps comps m
 
--- clusterSize :: ∀ comps m. (ClusterSizeDiscovery comps m, MonadIO m)
---      => Partition.Clusters comps -> m Size
--- clusterSize clusters = buildClusterSize @comps @comps clusters mempty
--- {-# INLINE clusterSize #-}
+--------------------------
+-- === Cluster size === --
+--------------------------
 
--- class ClusterSizeBuilder (cs :: [Type]) comps m where
---     buildClusterSize :: Partition.Clusters comps -> Size -> m Size
+-- === API === --
 
--- instance Applicative m => ClusterSizeBuilder '[] ts m where
---     buildClusterSize = \_ -> pure ; {-# INLINE buildClusterSize #-}
+type ClusterSize comps m =
+    ( ClusterStaticSizeGetter comps
+    , ClusterDynamicSizeFold  comps m
+    , Functor m
+    )
 
--- instance
---     ( TypeMap.ElemGetter (ComponentList comp) (ComponentLists comps)
---     , ByteSize.Known (Component comp) m
---     , ComponentSizeDiscovery comp m
---     , ClusterSizeBuilder cs comps m
---     , MonadIO m
---     ) => ClusterSizeBuilder (comp ': cs) comps m where
---     buildClusterSize clusters acc = do
---         let compList = TypeMap.getElem @(ComponentList comp) clusters
---         listSize <- ComponentList.foldlM accComponentSize mempty compList
---         buildClusterSize @cs @comps clusters $! acc <> listSize
---     {-# INLINE buildClusterSize #-}
+clusterSize :: ∀ comps m. ClusterSize comps m
+    => Partition.Clusters comps -> m Size
+clusterSize = \cluster -> do
+    let staticSize = clusterStaticSize @comps cluster
+    dynamicSize <- foldClusterDynamicSize @comps cluster mempty
+    pure $ Size staticSize dynamicSize
+{-# INLINE clusterSize #-}
 
--- accComponentSize :: ∀ comp m. ComponentSizeDiscovery comp m
---     => Size -> Component.Some comp -> m Size
--- accComponentSize = \acc -> fmap (acc <>) . componentSize
--- {-# INLINE accComponentSize #-}
+
+-- === ClusterStaticSizeGetter === --
+
+class ClusterStaticSizeGetter comps where
+    clusterStaticSize :: Partition.Clusters comps -> Int
+
+instance ClusterStaticSizeGetter '[] where
+    clusterStaticSize = const 0
+    {-# INLINE clusterStaticSize #-}
+
+instance
+    ( TypeMap.SplitHead (ComponentList comp) (ComponentLists comps)
+    , Storable.KnownConstantStaticSize comp
+    , ClusterStaticSizeGetter comps
+    ) => ClusterStaticSizeGetter (comp ': comps) where
+    clusterStaticSize = \cluster ->
+        let (  !compList
+             , !cluster' ) = TypeMap.splitHead cluster
+            compSize       = Storable.constantStaticSize @comp
+            compsSize      = compSize * ComponentList.length compList
+            totalSize      = compsSize + clusterStaticSize @comps cluster'
+        in  totalSize
+    {-# INLINE clusterStaticSize #-}
+
+
+-- === ClusterDynamicSizeFold === --
+
+class ClusterDynamicSizeFold comps m where
+    foldClusterDynamicSize :: Partition.Clusters comps
+                           -> DynamicSize -> m DynamicSize
+
+instance Applicative m
+     => ClusterDynamicSizeFold '[] m where
+    foldClusterDynamicSize = const pure
+    {-# INLINE foldClusterDynamicSize #-}
+
+instance
+    ( TypeMap.SplitHead (ComponentList comp) (ComponentLists comps)
+    , Size.DynamicDiscovery m (Component.Some comp)
+    , ClusterDynamicSizeFold comps m
+    , Monad m
+    ) => ClusterDynamicSizeFold (comp ': comps) m where
+    foldClusterDynamicSize cluster acc = do
+        let (!compList, !cluster') = TypeMap.splitHead cluster
+            sizeAcc  = \acc -> fmap (acc <>) . Size.discoverDynamic
+        listSize <- ComponentList.foldlM sizeAcc mempty compList
+        foldClusterDynamicSize @comps cluster' $! acc <> listSize
+    {-# INLINE foldClusterDynamicSize #-}
 
 
 
