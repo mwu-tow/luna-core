@@ -20,13 +20,33 @@ import Data.Graph.Data.Component.List  (ComponentList, ComponentLists)
 import Data.TypeMap.Strict             (TypeMap)
 
 
+----------------------
+-- === Clusters === --
+----------------------
+
+-- === Definitions === --
+
+type    Clusters__ comps = TypeMap (ComponentLists comps)
+newtype Clusters   comps = Clusters (Clusters__ comps)
+
+makeLenses ''Clusters
+
+
+-- === API === --
+
+splitHead :: TypeMap.SplitHead (ComponentList comp) (ComponentLists comps)
+    => Clusters (comp ': comps) -> (ComponentList comp, Clusters comps)
+splitHead = fmap wrap . TypeMap.splitHead . unwrap
+{-# INLINE splitHead #-}
+
+
+
 -------------------------------
 -- === Cluster Discovery === --
 -------------------------------
 
--- === Datatypes and aliases === --
+-- === Definition === --
 
-type Clusters   comps = TypeMap   (ComponentLists comps)
 type ClustersM  m     = Clusters  (Graph.DiscoverComponents m)
 type DiscoveryM m     = Discovery (Graph.DiscoverComponents m)
 
@@ -56,9 +76,12 @@ partition = Deep.run1 @(DiscoveryM m)
 
 instance (Monad m, ClusterEditor comp comps)
     => Fold.ComponentBuilder (Discovery comps) m comp where
-    componentBuild = \comp acc -> TypeMap.modifyElem_ @(ComponentList comp)
-                                  (ComponentList.Cons $ Layout.relayout comp)
-                              <$> acc
+    componentBuild = \comp acc
+       -> wrap
+        . TypeMap.modifyElem_ @(ComponentList comp)
+          (ComponentList.Cons $ Layout.relayout comp)
+        . unwrap
+      <$> acc
     {-# INLINE componentBuild #-}
 
 

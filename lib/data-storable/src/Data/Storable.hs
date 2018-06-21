@@ -7,14 +7,50 @@ import Prologue hiding (product)
 
 import qualified Foreign.Marshal.Alloc  as Mem
 import qualified Foreign.Marshal.Utils  as Mem
+import qualified Foreign.Ptr            as Ptr
 import qualified Foreign.Storable.Class as Storable
 import qualified Type.Data.List         as List
 import qualified Type.Known             as Type
 
-import Foreign.Ptr            (Ptr, plusPtr)
+import Foreign.ForeignPtr     (ForeignPtr)
+import Foreign.Ptr            (plusPtr)
 import Foreign.Ptr.Utils      (SomePtr)
 import Foreign.Storable.Class (Storable)
 import Type.Data.Semigroup    (type (<>))
+
+
+
+
+
+-------------------------------
+-- === Memory management === --
+-------------------------------
+
+-- === Definition === --
+
+data Management
+    = Managed
+    | Unmanaged
+
+
+
+-----------------
+-- === Ptr === --
+-----------------
+
+-- === Definition === -
+
+newtype Ptr (t :: Management) a = Ptr (PtrImpl t a)
+
+type family PtrImpl (t :: Management) :: Type -> Type where
+    PtrImpl 'Managed   = ForeignPtr
+    PtrImpl 'Unmanaged = Ptr.Ptr
+
+
+-- === Instances === --
+
+makeLenses ''Ptr
+deriving instance Show (PtrImpl t a) => Show (Ptr t a)
 
 
 
@@ -63,9 +99,9 @@ type family LookupFieldType__ name fields where
 
 
 
------------------------
+--------------------
 -- === Struct === --
------------------------
+--------------------
 
 -- === Definition === --
 
@@ -101,7 +137,7 @@ type instance Storable.ConstantSize t (Struct fields)
 -- === API === --
 
 fieldPtr :: ∀ name a. HasField name a
-         => FieldRef name -> a -> Ptr (FieldType name a)
+         => FieldRef name -> a -> Ptr.Ptr (FieldType name a)
 fieldPtr = \_ -> fieldPtrByName @name
 {-# INLINE fieldPtr #-}
 
@@ -138,7 +174,7 @@ modifyField_ = \field f a -> do
 type FieldEditor name a = (FieldReader name a, FieldWriter name a)
 
 class HasField (name :: Symbol) a where
-    fieldPtrByName :: a -> Ptr (FieldType name a)
+    fieldPtrByName :: a -> Ptr.Ptr (FieldType name a)
 
 class FieldReader (name :: Symbol) a where
     readFieldByNameIO :: a -> IO (FieldType name a)
@@ -150,7 +186,7 @@ class FieldWriter (name :: Symbol) a where
 -- === Internal === --
 
 class HasField__ (name :: Symbol) (fs :: [FieldSig]) (idx :: Maybe Nat) where
-    fieldPtr__ :: Struct fs -> Ptr (LookupFieldType name fs)
+    fieldPtr__ :: Struct fs -> Ptr.Ptr (LookupFieldType name fs)
 
 instance
     ( fields' ~ List.Take idx (MapFieldSigType fields)
@@ -208,7 +244,7 @@ free :: ∀ a m. (IsStruct a, MonadIO m) => a -> m ()
 free = liftIO . Mem.free . unwrap . view struct
 {-# INLINE free #-}
 
-unsafeCastFromPtr :: ∀ a t. IsStruct a => Ptr t -> a
+unsafeCastFromPtr :: ∀ a t. IsStruct a => Ptr.Ptr t -> a
 unsafeCastFromPtr = \ptr -> view (from struct) $ Struct @(Fields a) (coerce ptr)
 {-# INLINE unsafeCastFromPtr #-}
 

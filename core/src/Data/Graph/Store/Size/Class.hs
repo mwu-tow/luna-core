@@ -13,6 +13,7 @@ import qualified Data.Graph.Fold.Filter           as Fold
 import qualified Data.Graph.Fold.Partition        as Partition
 import qualified Data.Graph.Fold.Scoped           as Fold
 import qualified Data.Graph.Fold.Struct           as Fold
+import qualified Foreign.Storable.Deriving        as Storable
 import qualified Foreign.Storable.Utils           as Storable
 
 import Data.Graph.Data.Component.Class  (Component)
@@ -37,12 +38,14 @@ data DynamicSize = DynamicSize
     , _ptrRegion  :: Int
     } deriving (Show)
 makeLenses ''DynamicSize
+Storable.derive ''DynamicSize
 
 data Size = Size
     { _static  :: Int
     , _dynamic :: DynamicSize
     } deriving (Show)
 makeLenses ''Size
+Storable.derive ''Size
 
 
 -- === API === --

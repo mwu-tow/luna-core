@@ -1,3 +1,5 @@
+{-# LANGUAGE UndecidableInstances #-}
+
 module Data.Graph.Store.Data where
 
 import Prologue hiding (Data)
@@ -5,6 +7,9 @@ import Prologue hiding (Data)
 import qualified Data.ByteString.Internal    as ByteString
 import qualified Data.Convert2               as Convert
 import qualified Data.Graph.Store.Size.Class as Size
+import qualified Foreign.ForeignPtr          as ForeignPtr
+import qualified Foreign.Storable.Deriving   as Storable
+import qualified Foreign.Storable.Utils      as Storable
 
 import Data.ByteString             (ByteString)
 import Data.Graph.Store.Size.Class (Size)
@@ -20,25 +25,43 @@ import Foreign.Ptr.Utils           (SomePtr)
 
 -- === Definition === --
 
-data Data = Data
-    { _ptr      :: SomeForeignPtr
-    , _byteSize :: Size
-    } deriving (Show)
-makeLenses ''Data
 
-data View = View
+newtype Header = Header
+    { _size :: Size
+    } deriving (Show)
+makeLenses      ''Header
+Storable.derive ''Header
+
+data Binary = Binary
+    { _header :: Header
+    , _block  :: SomeForeignPtr
+    } deriving (Show)
+makeLenses ''Binary
+
+data BinaryView = BinaryView
     { _static  :: SomePtr
     , _dynData :: SomePtr
     , _dynPtrs :: SomePtr
     } deriving (Show)
-makeLenses ''View
+makeLenses ''BinaryView
+
+
+alloc :: MonadIO m => Size -> m Binary
+alloc = \size -> do
+    let headerSize = Storable.sizeOf' @Header
+        bodySize   = Size.total size
+        totalSize  = headerSize + bodySize
+    ptr <- liftIO $ ForeignPtr.mallocForeignPtrBytes totalSize
+    let bodyPtr = ForeignPtr.plusForeignPtr ptr headerSize
+    pure $ Binary (Header size) bodyPtr
+{-# INLINE alloc #-}
 
 
 -- === API === --
 
-instance Convert.To ByteString Data where
-    to = \(Data ptr size) -> ByteString.PS (coerce ptr) 0 (Size.total size)
-    {-# INLINE to #-}
+-- instance Convert.To ByteString Binary where
+--     to = \(Data ptr size) -> ByteString.PS (coerce ptr) 0 (Size.total size)
+--     {-# INLINE to #-}
 
 -- data Dynamic = Dynamic
 --     { _noPointersMem :: SomePtr
