@@ -35,6 +35,7 @@ import System.IO.Unsafe       (unsafeDupablePerformIO, unsafePerformIO)
 
 -- === Definition === --
 
+-- TODO: remove, replace with Memory.ConstantRegion
 newtype MemChunk (n :: Nat) (a :: Type) = MemChunk (Ptr a)
 makeLenses ''MemChunk
 

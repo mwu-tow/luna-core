@@ -69,6 +69,7 @@ type Serializer comp m =
     ( MonadIO m
     , Partition.Partition comp m
     , Size.ClusterSizeDiscovery (Graph.DiscoverComponents m) m
+    , Buffer.Alloc m
     -- , Alloc.Allocator comps m
     -- , Serialize.ClusterSerializer comps m
     )

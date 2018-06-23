@@ -6,6 +6,7 @@ import Prologue hiding (Data)
 
 import qualified Data.ByteString.Internal    as ByteString
 import qualified Data.Convert2               as Convert
+import qualified Data.Graph.Data.Graph.Class as Graph
 import qualified Data.Graph.Store.Size.Class as Size
 import qualified Data.Storable               as Struct
 import qualified Foreign.ForeignPtr          as ForeignPtr
@@ -13,6 +14,7 @@ import qualified Foreign.Storable.Class      as Storable
 import qualified Foreign.Storable.Deriving   as Storable
 import qualified Foreign.Storable.Utils      as Storable
 import qualified Memory                      as Memory
+import qualified Type.Data.List              as List
 
 import Data.ByteString             (ByteString)
 import Data.Graph.Store.Size.Class (Size)
@@ -25,21 +27,21 @@ import Type.Data.Semigroup         (type (<>))
 
 
 
------------------------------
--- === DynamicMemChunk === --
------------------------------
+------------------------------
+-- === DynamicMemRegion === --
+------------------------------
 
 -- === Definition === --
 
-newtype UnknownSizeMemChunk t a = UnknownSizeMemChunk (Memory.Ptr t a)
+newtype UnknownSizeMemRegion t a = UnknownSizeMemRegion (Memory.Ptr t a)
 
-unsafeNull :: Memory.NullPtr t => UnknownSizeMemChunk t a
-unsafeNull = UnknownSizeMemChunk Memory.nullPtr
+unsafeNull :: Memory.NullPtr t => UnknownSizeMemRegion t a
+unsafeNull = UnknownSizeMemRegion Memory.nullPtr
 {-# INLINE unsafeNull #-}
 
 -- FIXME: change it to Struct.FieldInitializer
 instance Applicative m
-      => Storable.Poke Struct.Field m (UnknownSizeMemChunk t a) where
+      => Storable.Poke Struct.Field m (UnknownSizeMemRegion t a) where
     poke = \_ _ -> pure ()
     {-# INLINE poke #-}
 
@@ -51,70 +53,80 @@ instance Applicative m
 
 -- === Definition === --
 
-newtype Buffer = Buffer (ManagedStruct BufferLayout)
+newtype Buffer graph = Buffer (ManagedStruct (BufferLayout graph))
 
-type HeaderLayout =
-   '[ "staticDataChunkSize"  -:: Int
-    , "dynamicDataChunkSize" -:: Int
-    , "pointerDataChunkSize" -:: Int
+type HeaderLayout graph =
+   '[ "staticDataRegionSize"  -:: Int
+    , "dynamicDataRegionSize" -:: Int
+    , "pointerDataRegionSize" -:: Int
+    , "componentElems"        -:: Memory.ConstantRegion
+                                  (List.Length (Graph.Components graph))
+                                  'Memory.Managed Int
     ]
 
-type BufferDataChunk = UnknownSizeMemChunk 'Memory.Managed ()
+type BufferDataRegion = UnknownSizeMemRegion 'Memory.Managed ()
 
-type BufferLayout =
-    HeaderLayout <>
-   '[ "memoryChunk" -:: BufferDataChunk
+type BufferLayout graph =
+    HeaderLayout graph <>
+   '[ "memoryRegion" -:: BufferDataRegion
     ]
 
 makeLenses ''Buffer
-instance Struct.IsStruct Buffer
-type instance Memory.Management Buffer = 'Memory.Managed
+instance Struct.IsStruct (Buffer graph)
+type instance Memory.Management (Buffer graph) = 'Memory.Managed
 
 
 -- === Fields === --
 
-field_staticDataChunkSize  :: Struct.FieldRef "staticDataChunkSize"
-field_dynamicDataChunkSize :: Struct.FieldRef "dynamicDataChunkSize"
-field_pointerDataChunkSize :: Struct.FieldRef "pointerDataChunkSize"
-field_memoryChunk          :: Struct.FieldRef "memoryChunk"
-field_staticDataChunkSize  = Struct.field ; {-# INLINE field_staticDataChunkSize  #-}
-field_dynamicDataChunkSize = Struct.field ; {-# INLINE field_dynamicDataChunkSize #-}
-field_pointerDataChunkSize = Struct.field ; {-# INLINE field_pointerDataChunkSize #-}
-field_memoryChunk          = Struct.field ; {-# INLINE field_memoryChunk          #-}
+field_staticDataRegionSize  :: Struct.FieldRef "staticDataRegionSize"
+field_dynamicDataRegionSize :: Struct.FieldRef "dynamicDataRegionSize"
+field_pointerDataRegionSize :: Struct.FieldRef "pointerDataRegionSize"
+field_memoryRegion          :: Struct.FieldRef "memoryRegion"
+field_staticDataRegionSize  = Struct.field ; {-# INLINE field_staticDataRegionSize  #-}
+field_dynamicDataRegionSize = Struct.field ; {-# INLINE field_dynamicDataRegionSize #-}
+field_pointerDataRegionSize = Struct.field ; {-# INLINE field_pointerDataRegionSize #-}
+field_memoryRegion          = Struct.field ; {-# INLINE field_memoryRegion          #-}
 
-dataChunk :: Buffer -> BufferDataChunk
-dataChunk = coerce . Struct.fieldPtr field_memoryChunk
-{-# INLINE dataChunk #-}
+
+type HasDataRegion graph = Struct.HasField "memoryRegion" (Buffer graph)
+dataRegion :: HasDataRegion graph => Buffer graph -> BufferDataRegion
+dataRegion = coerce . Struct.fieldPtr field_memoryRegion
+{-# INLINE dataRegion #-}
 
 
 -- === API === --
 
-alloc :: MonadIO m => Size -> m Buffer
+type Alloc m =
+    ( MonadIO m
+    , Storable.KnownConstantStaticSize (HeaderLayout (Graph.Discover m))
+    )
+alloc :: ∀ m. Alloc m => Size -> m (Buffer (Graph.Discover m))
 alloc = \size -> liftIO $ do
-    let headerSize = Storable.constantStaticSize @HeaderLayout
+    let headerSize = Storable.constantStaticSize @(HeaderLayout (Graph.Discover m))
         bodySize   = Size.total size
         totalSize  = headerSize + bodySize
     ptr <- ForeignPtr.mallocForeignPtrBytes totalSize
-    Struct.placementNew @Buffer
-        (Convert.convert ptr)
-        (size ^. Size.static)
-        (size ^. (Size.dynamic . Size.dataRegion))
-        (size ^. (Size.dynamic . Size.ptrRegion))
-        unsafeNull
+    undefined
+    -- Struct.placementNew @(Buffer (Graph.Discover m))
+    --     (Convert.convert ptr)
+    --     (size ^. Size.static)
+    --     (size ^. (Size.dynamic . Size.dataRegion))
+    --     (size ^. (Size.dynamic . Size.ptrRegion))
+    --     unsafeNull
 
 
 -- === Conversions === --
 
-unsafeFreeze :: MonadIO m => Buffer -> m ByteString
+unsafeFreeze :: (MonadIO m, HasDataRegion graph) => Buffer graph -> m ByteString
 unsafeFreeze = \a -> do
-    staticSize  <- Struct.readField field_staticDataChunkSize  a
-    dynDataSize <- Struct.readField field_dynamicDataChunkSize a
-    dynPtrSize  <- Struct.readField field_pointerDataChunkSize a
-    let mem = dataChunk a
+    staticSize  <- Struct.readField field_staticDataRegionSize  a
+    dynDataSize <- Struct.readField field_dynamicDataRegionSize a
+    dynPtrSize  <- Struct.readField field_pointerDataRegionSize a
+    let mem = dataRegion a
     let totalSize = staticSize + dynDataSize + dynPtrSize
     pure $ ByteString.PS (coerce mem) 0 totalSize
 
-unsafeThaw :: Monad m => ByteString -> m Buffer
+unsafeThaw :: Monad m => ByteString -> m (Buffer (Graph.Discover m))
 unsafeThaw = \(ByteString.PS ptr _ _) -> pure $ coerce ptr
 {-# INLINE unsafeThaw #-}
 
