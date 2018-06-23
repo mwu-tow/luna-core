@@ -38,6 +38,7 @@ library:
         - luna-cpp-containers
         - luna-data-construction
         - luna-data-property
+        - luna-data-storable
         - luna-data-tag
         - luna-data-typemap
         - luna-exception

@@ -94,30 +94,30 @@ import Data.Graph.Store.Size.Class    (DynamicSize, Size (Size))
 
 -- === API === --
 
-class ClusterSizeFold comps m where
-    foldClusterSize :: Partition.Clusters comps -> Size -> m Size
+-- class ClusterSizeDiscovery comps m where
+--     clusterSize :: Partition.Clusters comps -> Size -> m Size
 
-instance Applicative m
-     => ClusterSizeFold '[] m where
-    foldClusterSize = const pure
-    {-# INLINE foldClusterSize #-}
+-- instance Applicative m
+--      => ClusterSizeDiscovery '[] m where
+--     clusterSize = const pure
+--     {-# INLINE clusterSize #-}
 
-instance
-    ( TypeMap.SplitHead (ComponentList comp) (ComponentLists comps)
-    , Storable.KnownConstantStaticSize comp
-    , Size.DynamicDiscovery m (Component.Some comp)
-    , ClusterSizeFold comps m
-    , Monad m
-    ) => ClusterSizeFold (comp ': comps) m where
-    foldClusterSize cluster acc = do
-        let (  !compList
-             , !cluster') = Partition.splitHead cluster
-            sizeDiscovery = \acc -> fmap (acc <>) . Size.discoverDynamic
-            compSize      = Storable.constantStaticSize @comp
-            staticSize    = compSize * ComponentList.length compList
-        dynamicSize <- ComponentList.foldlM sizeDiscovery mempty compList
-        foldClusterSize cluster' $! acc <> Size staticSize dynamicSize
-    {-# INLINE foldClusterSize #-}
+-- instance
+--     ( TypeMap.SplitHead (ComponentList comp) (ComponentLists comps)
+--     , Storable.KnownConstantStaticSize comp
+--     , Size.DynamicDiscovery m (Component.Some comp)
+--     , ClusterSizeDiscovery comps m
+--     , Monad m
+--     ) => ClusterSizeDiscovery (comp ': comps) m where
+--     clusterSize cluster acc = do
+--         let (  !compList
+--              , !cluster') = Partition.splitHead cluster
+--             sizeDiscovery = \acc -> fmap (acc <>) . Size.discoverDynamic
+--             compSize      = Storable.constantStaticSize @comp
+--             staticSize    = compSize * ComponentList.length compList
+--         dynamicSize <- ComponentList.foldlM sizeDiscovery mempty compList
+--         clusterSize cluster' $! acc <> Size staticSize dynamicSize
+--     {-# INLINE clusterSize #-}
 
 
 

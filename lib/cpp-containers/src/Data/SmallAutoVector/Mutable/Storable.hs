@@ -18,6 +18,7 @@ import qualified Foreign.Storable                 as StdStorable
 import qualified Foreign.Storable.Class           as Storable
 import qualified Type.Known                       as Type
 import qualified Data.Convert2.Class as Convert
+import qualified Memory as Memory
 
 import Data.Storable          (type (-::), UnmanagedStruct)
 import Foreign.Ptr            (Ptr, minusPtr, nullPtr, plusPtr)
@@ -56,7 +57,7 @@ type instance Storable.ConstantSize Storable.Static (MemChunk n a)
 --     {-# INLINE size #-}
 
 instance Applicative m
-      => Storable.Peek t m (MemChunk n a) where
+      => Storable.Peek Struct.Field m (MemChunk n a) where
     peek = pure . coerce
     {-# INLINE peek #-}
 
@@ -82,7 +83,7 @@ makeLenses ''SmallVector
 
 type instance Item (SmallVector n a) = a
 instance Struct.IsStruct (SmallVector n a)
-type instance Struct.Management (SmallVector n a) = 'Struct.Unmanaged
+type instance Memory.Management (SmallVector n a) = 'Memory.Unmanaged
 
 
 -- === Fields === --

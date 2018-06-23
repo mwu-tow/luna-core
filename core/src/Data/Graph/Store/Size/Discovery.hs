@@ -4,24 +4,28 @@ module Data.Graph.Store.Size.Discovery where
 
 import Prologue
 
-import qualified Data.Graph.Data.Component.Set    as Component
+import qualified Data.Graph.Data.Component.Class  as Component
+import qualified Data.Graph.Data.Component.List   as ComponentList
 import qualified Data.Graph.Data.Component.Set    as ComponentSet
 import qualified Data.Graph.Data.Component.Vector as ComponentVector
 import qualified Data.Graph.Data.Layer.Class      as Layer
 import qualified Data.Graph.Fold.Class            as Fold
 import qualified Data.Graph.Fold.Filter           as Fold
+import qualified Data.Graph.Fold.Partition        as Partition
 import qualified Data.Graph.Fold.Scoped           as Fold
 import qualified Data.Graph.Fold.Struct           as Fold
 import qualified Data.Graph.Store.Size.Class      as Size
+import qualified Data.TypeMap.Strict              as TypeMap
 import qualified Foreign.DynamicStorable          as DynamicStorable
 import qualified Foreign.Storable.Class           as Storable
+import qualified Foreign.Storable.Class           as Storable
 import qualified Type.Show                        as Type
--- import qualified Foreign.Storable.Utils           as Storable
 
 import Data.Graph.Data.Component.Class       (Component)
+import Data.Graph.Data.Component.List        (ComponentList, ComponentLists)
 import Data.Graph.Data.Component.Set         (ComponentSet)
 import Data.Graph.Data.Component.Vector      (ComponentVector)
-import Data.Graph.Store.Size.Class           (DynamicSize)
+import Data.Graph.Store.Size.Class           (DynamicSize, Size (Size))
 import Data.PtrSet.Mutable                   (IsPtr, UnmanagedPtrSet)
 import Data.SmallAutoVector.Mutable.Storable (SmallVector)
 import Data.Vector.Storable.Foreign          (Vector)
@@ -32,9 +36,9 @@ import Foreign.Storable.Utils                (Storable)
 
 
 
----------------------------
--- === DynamicDiscovery === --
----------------------------
+----------------------------------
+-- === DynamicSizeDiscovery === --
+----------------------------------
 
 -- === Definition === --
 
@@ -99,7 +103,6 @@ instance MonadIO m
       => Fold.Builder1 Discovery m (ComponentSet comp) where
     build1 = \a mi -> do
         size <- Storable.dynamicSize1 a
-        print $ "SET! (" <> show size <> ") = " <> show a
         (Size.ptrRegion %~ (+size)) <$> mi
     {-# INLINE build1 #-}
 
@@ -124,6 +127,45 @@ instance {-# OVERLAPPABLE #-}
     {-# INLINE build1 #-}
 
 instance Monad m => Fold.Builder1 Discovery m (Component tag)
+
+
+
+
+------------------------------------
+-- === Cluster size discovery === --
+------------------------------------
+
+-- === API === --
+
+clusterSize :: ClusterSizeDiscovery comps m
+            => Partition.Clusters comps -> m Size
+clusterSize = \clusters -> foldClusterSize clusters mempty
+{-# INLINE clusterSize #-}
+
+class ClusterSizeDiscovery comps m where
+    foldClusterSize :: Partition.Clusters comps -> Size -> m Size
+
+instance Applicative m
+     => ClusterSizeDiscovery '[] m where
+    foldClusterSize = const pure
+    {-# INLINE foldClusterSize #-}
+
+instance
+    ( TypeMap.SplitHead (ComponentList comp) (ComponentLists comps)
+    , Storable.KnownConstantStaticSize comp
+    , DynamicDiscovery m (Component.Some comp)
+    , ClusterSizeDiscovery comps m
+    , Monad m
+    ) => ClusterSizeDiscovery (comp ': comps) m where
+    foldClusterSize cluster acc = do
+        let (  !compList
+             , !cluster') = Partition.splitHead cluster
+            sizeDiscovery = \acc -> fmap (acc <>) . discoverDynamic
+            compSize      = Storable.constantStaticSize @comp
+            staticSize    = compSize * ComponentList.length compList
+        dynamicSize <- ComponentList.foldlM sizeDiscovery mempty compList
+        foldClusterSize cluster' $! acc <> Size staticSize dynamicSize
+    {-# INLINE foldClusterSize #-}
 
 
 

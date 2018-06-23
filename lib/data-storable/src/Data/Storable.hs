@@ -11,6 +11,7 @@ import qualified Foreign.Marshal.Alloc  as Mem
 import qualified Foreign.Marshal.Utils  as Mem
 import qualified Foreign.Ptr            as Ptr
 import qualified Foreign.Storable.Class as Storable
+import qualified Memory                 as Memory
 import qualified Type.Data.List         as List
 import qualified Type.Known             as Type
 
@@ -20,119 +21,6 @@ import Foreign.Ptr               (plusPtr)
 import Foreign.Storable.Class    (Storable)
 import Type.Data.Semigroup       (type (<>))
 
-
-
-
-
--------------------------------
--- === Memory management === --
--------------------------------
-
--- === Definition === --
-
-type family Management (a :: k) :: ManagementType
-
-data ManagementType
-    = Managed
-    | Unmanaged
-
-type AssertUnmanaged a = (Management a ~ 'Unmanaged)
-type AssertManaged   a = (Management a ~ 'Managed)
-
-
-
------------------
--- === Ptr === --
------------------
-
--- === Definition === -
-
-newtype Ptr (t :: ManagementType) a = Ptr (PtrImpl t a)
-
-type family PtrImpl (t :: ManagementType) :: Type -> Type where
-    PtrImpl 'Managed   = ForeignPtr
-    PtrImpl 'Unmanaged = Ptr.Ptr
-
-
--- === Aliases === --
-
-type SomePtr t        = Ptr t ()
-type ManagedPtr       = Ptr 'Managed
-type UnmanagedPtr     = Ptr 'Unmanaged
-type SomeManagedPtr   = SomePtr 'Managed
-type SomeUnmanagedPtr = SomePtr 'Unmanaged
-
-
--- === Conversions === --
-
-instance (a ~ b, t ~ 'Unmanaged)
-      => Convert.To (Ptr t a) (Ptr.Ptr b) where
-    to = wrap ; {-# INLINE to #-}
-
-instance (a ~ b, t ~ 'Managed)
-      => Convert.To (Ptr t a) (ForeignPtr b) where
-    to = wrap ; {-# INLINE to #-}
-
-
--- === Plus === --
-
-class Plus t where
-    plus :: ∀ a b. Ptr t a -> Int -> Ptr t b
-
-instance Plus 'Managed where
-    plus = \ptr -> wrap . plusForeignPtr (unwrap ptr)
-    {-# INLINE plus #-}
-
-instance Plus 'Unmanaged where
-    plus = \ptr -> wrap . plusPtr (unwrap ptr)
-    {-# INLINE plus #-}
-
-
--- === WithRawPtr === --
-
-class WithRawPtr t (m :: Type -> Type) where
-    withRawPtr :: ∀ a b. Ptr t a -> (Ptr.Ptr a -> m b) -> m b
-
-instance WithRawPtr 'Unmanaged m where
-    withRawPtr = \ptr f -> f (unwrap ptr)
-    {-# INLINE withRawPtr #-}
-
-instance MonadIO m
-      => WithRawPtr 'Managed m where
-    withRawPtr = \ptr f -> do
-        let fptr = unwrap ptr
-        out <- f $! unsafeForeignPtrToPtr fptr
-        liftIO $ touchForeignPtr fptr
-        pure out
-    {-# INLINE withRawPtr #-}
-
-
--- === Malloc === --
-
-class Malloc t where
-    mallocBytesIO :: ∀ a. Int -> IO (Ptr t a)
-
-instance Malloc 'Unmanaged where
-    mallocBytesIO = fmap wrap . Mem.mallocBytes
-    {-# INLINE mallocBytesIO #-}
-
-instance Malloc 'Managed where
-    mallocBytesIO = fmap wrap . ForeignPtr.mallocForeignPtrBytes
-    {-# INLINE mallocBytesIO #-}
-
-mallocBytes :: ∀ t m a. Malloc t => MonadIO m => Int -> m (Ptr t a)
-mallocBytes = liftIO . mallocBytesIO
-{-# INLINE mallocBytes #-}
-
-
-
--- === Instances === --
-
-makeLenses ''Ptr
-deriving instance Eq     (PtrImpl t a) => Eq     (Ptr t a)
-deriving instance NFData (PtrImpl t a) => NFData (Ptr t a)
-deriving instance Ord    (PtrImpl t a) => Ord    (Ptr t a)
-deriving instance Show   (PtrImpl t a) => Show   (Ptr t a)
 
 
 
@@ -187,25 +75,25 @@ type family LookupFieldType__ name fields where
 
 -- === Definition === --
 
-type    Struct__ t (fields :: [FieldSig]) = SomePtr t
+type    Struct__ t (fields :: [FieldSig]) = Memory.SomePtr t
 newtype Struct   t (fields :: [FieldSig]) = Struct (Struct__ t fields)
 
 
 -- === Aliases === --
 
-type ManagedStruct   = Struct 'Managed
-type UnmanagedStruct = Struct 'Unmanaged
+type ManagedStruct   = Struct 'Memory.Managed
+type UnmanagedStruct = Struct 'Memory.Unmanaged
 
 
 -- === Generalization === --
 
 class IsStruct a where
     type Fields a :: [FieldSig]
-    struct :: Iso' a (Struct (Management a) (Fields a))
+    struct :: Iso' a (Struct (Memory.Management a) (Fields a))
 
     type Fields a = Fields (Unwrapped a)
-    default struct :: (Wrapped a, Unwrapped a ~ Struct (Management a) (Fields a))
-                   => Iso' a (Struct (Management a) (Fields a))
+    default struct :: (Wrapped a, Unwrapped a ~ Struct (Memory.Management a) (Fields a))
+                   => Iso' a (Struct (Memory.Management a) (Fields a))
     struct = wrapped' ; {-# INLINE struct #-}
 
 instance IsStruct (Struct t fields) where
@@ -217,7 +105,7 @@ instance IsStruct (Struct t fields) where
 
 makeLenses ''Struct
 
-type instance Management (Struct t _) = t
+type instance Memory.Management (Struct t _) = t
 
 type instance Storable.ConstantSize s (Struct t fields)
             = Storable.ConstantSize s (MapFieldSigType fields)
@@ -236,7 +124,7 @@ deriving instance Show   (Struct__ t fields) => Show   (Struct t fields)
 -- === API === --
 
 fieldPtr :: ∀ name a. HasField name a
-         => FieldRef name -> a -> Ptr (Management a) (FieldType name a)
+         => FieldRef name -> a -> Memory.Ptr (Memory.Management a) (FieldType name a)
 fieldPtr = \_ -> fieldPtrByName @name
 {-# INLINE fieldPtr #-}
 
@@ -273,7 +161,7 @@ modifyField_ = \field f a -> do
 type FieldEditor name a = (FieldReader name a, FieldWriter name a)
 
 class HasField (name :: Symbol) a where
-    fieldPtrByName :: a -> Ptr (Management a) (FieldType name a)
+    fieldPtrByName :: a -> Memory.Ptr (Memory.Management a) (FieldType name a)
 
 class FieldReader (name :: Symbol) a where
     readFieldByNameIO :: a -> IO (FieldType name a)
@@ -285,32 +173,32 @@ class FieldWriter (name :: Symbol) a where
 -- === Internal === --
 
 class HasField__ t (name :: Symbol) (fs :: [FieldSig]) (idx :: Maybe Nat) where
-    fieldPtr__ :: Struct t fs -> Ptr t (LookupFieldType name fs)
+    fieldPtr__ :: Struct t fs -> Memory.Ptr t (LookupFieldType name fs)
 
 instance
     ( fields' ~ List.Take idx (MapFieldSigType fields)
     , Storable.KnownConstantStaticSize fields'
-    , Plus t
+    , Memory.Plus t
     ) => HasField__ t name fields ('Just idx) where
     fieldPtr__ = \(Struct !ptr) ->
         let off = Storable.constantStaticSize @fields'
-        in  ptr `plus` off
+        in  ptr `Memory.plus` off
     {-# INLINE fieldPtr__ #-}
 
-instance (HasField name a, Storable.Peek Field IO (FieldType name a), WithRawPtr (Management a) IO)
+instance (HasField name a, Storable.Peek Field IO (FieldType name a), Memory.WithRawPtr (Memory.Management a) IO)
       => FieldReader name a where
-    readFieldByNameIO = \a -> withRawPtr (fieldPtrByName @name a) $ Storable.peek @Field
+    readFieldByNameIO = \a -> Memory.withRawPtr (fieldPtrByName @name a) $ Storable.peek @Field
     {-# INLINE readFieldByNameIO #-}
 
-instance (HasField name a, Storable.Poke Field IO (FieldType name a), WithRawPtr (Management a) IO)
+instance (HasField name a, Storable.Poke Field IO (FieldType name a), Memory.WithRawPtr (Memory.Management a) IO)
       => FieldWriter name a where
-    writeFieldByNameIO = \a val -> withRawPtr (fieldPtrByName @name a) $ flip (Storable.poke @Field) val
+    writeFieldByNameIO = \a val -> Memory.withRawPtr (fieldPtrByName @name a) $ flip (Storable.poke @Field) val
     {-# INLINE writeFieldByNameIO #-}
 
 instance
     ( fields ~ Fields a
     , idx    ~ List.ElemIndex name (MapFieldSigName fields)
-    , man    ~ Management a
+    , man    ~ Memory.Management a
     , IsStruct a
     , HasField__ man name fields idx
     ) => HasField name a where
@@ -326,27 +214,38 @@ instance
 
 -- === Definition === --
 
-type Constructor       a        = StructConstructor a (Fields a)
 type ConstructorSig    a        = ConsSig__ a (MapFieldSigType (Fields a))
 type StructConstructor a fields = Cons__  a (MapFieldSigType fields)
-type Allocator  t               = Int -> IO (SomePtr t)
-type Serializer t               = SomePtr t -> (IO (), SomePtr t)
+type Allocator  t               = IO (Memory.SomePtr t)
+type Serializer t               = Memory.SomePtr t -> (IO (), Memory.SomePtr t)
+type Constructor       a        = ( StructConstructor a (Fields a)
+                                  , ConsTgt__ (ConstructorSig a) ~ a
+                                  )
 
-constructWith :: ∀ a. Constructor a => Allocator (Management a) -> ConstructorSig a
-constructWith = \alloc -> cons__ @a @(MapFieldSigType (Fields a))
+placementWith :: ∀ a. Constructor a => Allocator (Memory.Management a) -> ConstructorSig a
+placementWith = \alloc -> cons__ @a @(MapFieldSigType (Fields a))
                           alloc (\ptr -> (pure (), ptr))
-{-# INLINE constructWith #-}
+{-# INLINE placementWith #-}
 
-construct :: ∀ a. (Constructor a, Malloc (Management a)) => ConstructorSig a
-construct = constructWith @a mallocBytes
+placementNew :: ∀ a. Constructor a => Memory.Ptr (Memory.Management a) a -> ConstructorSig a
+placementNew = placementWith . pure . Memory.coercePtr
+{-# INLINE placementNew #-}
+
+construct :: ∀ a.
+    ( Constructor a
+    , Memory.Malloc (Memory.Management a)
+    , Storable.KnownConstantStaticSize (Fields a)
+    ) => ConstructorSig a
+construct = placementWith @a (Memory.mallocBytes size) where
+    size = Storable.constantStaticSize @(Fields a)
 {-# INLINE construct #-}
 
-free :: ∀ a m. (IsStruct a, MonadIO m, AssertUnmanaged a) => a -> m ()
+free :: ∀ a m. (IsStruct a, MonadIO m, Memory.AssertUnmanaged a) => a -> m ()
 free = liftIO . Mem.free . unwrap . unwrap . view struct
 {-# INLINE free #-}
 
-unsafeCastFromPtr :: ∀ a p. IsStruct a => Ptr (Management a) () -> a
-unsafeCastFromPtr = view (from struct) . Struct @(Management a) @(Fields a)
+unsafeCastFromPtr :: ∀ a p. IsStruct a => Memory.Ptr (Memory.Management a) () -> a
+unsafeCastFromPtr = view (from struct) . Struct @(Memory.Management a) @(Fields a)
 {-# INLINE unsafeCastFromPtr #-}
 
 
@@ -356,27 +255,43 @@ type family ConsSig__ a types where
     ConsSig__ a (t ': ts) = t -> (ConsSig__ a ts)
     ConsSig__ a '[]       = IO a
 
-class Cons__ a types where
-    cons__ :: Allocator (Management a) -> Serializer (Management a) -> ConsSig__ a types
+type family ConsTgt__ f where
+    ConsTgt__ (_ -> a) = ConsTgt__ a
+    ConsTgt__ (IO a)   = a
 
-instance
+class Cons__ a types where
+    cons__ :: Allocator (Memory.Management a) -> Serializer (Memory.Management a) -> ConsSig__ a types
+
+instance {-# OVERLAPPABLE #-}
     ( Cons__ a fs
     , Storable.KnownConstantStaticSize f
     , Storable.Poke Field IO f
-    , WithRawPtr (Management a) IO
-    , Plus (Management a)
+    , Memory.WithRawPtr (Memory.Management a) IO
+    , Memory.Plus (Memory.Management a)
     ) => Cons__ a (f ': fs) where
     cons__ = \alloc f a -> cons__ @a @fs alloc $ \ptr ->
         let (!m, !ptr') = f ptr
-            f'          = m >> withRawPtr ptr' (flip (Storable.poke @Field) a . coerce)
-            ptr''       = ptr' `plus` Storable.constantStaticSize @f
+            f'          = m >> Memory.withRawPtr ptr' (flip (Storable.poke @Field) a . coerce)
+            ptr''       = ptr' `Memory.plus` Storable.constantStaticSize @f
         in  (f', ptr'')
     {-# INLINE cons__ #-}
 
-instance (IsStruct a, Storable.KnownConstantStaticSize (Fields a))
+instance
+    ( Cons__ a '[]
+    , Storable.Poke Field IO f
+    , Memory.WithRawPtr (Memory.Management a) IO
+    , Memory.Plus (Memory.Management a)
+    ) => Cons__ a '[f] where
+    cons__ = \alloc f a -> cons__ @a @('[]) alloc $ \ptr ->
+        let (!m, !ptr') = f ptr
+            f'          = m >> Memory.withRawPtr ptr' (flip (Storable.poke @Field) a . coerce)
+        in  (f', ptr')
+    {-# INLINE cons__ #-}
+
+instance IsStruct a
       => Cons__ a '[] where
     cons__ = \alloc f -> do
-        ptr <- alloc $! Storable.constantStaticSize @(Fields a)
+        ptr <- alloc
         let (!m, !_) = f ptr
         (Struct ptr ^. from struct) <$ m
     {-# INLINE cons__ #-}
@@ -387,15 +302,10 @@ instance (IsStruct a, Storable.KnownConstantStaticSize (Fields a))
 
 
 
-
-
-    -- type Fields a = Fields (U)
-
-
-newtype X = X (Struct 'Unmanaged '["foo" -:: Int, "bar" -:: Int, "baz" -:: Int])
+newtype X = X (Struct 'Memory.Unmanaged '["foo" -:: Int, "bar" -:: Int, "baz" -:: Int])
 makeLenses ''X
 
-type instance Management X = 'Unmanaged
+type instance Memory.Management X = 'Memory.Unmanaged
 
 instance IsStruct X
 
@@ -430,7 +340,7 @@ main = do
 -- var = product @VarLayout Mem.mallocBytes
 -- {-# NOINLINE var #-}
 
--- match :: SomePtr -> Vector SomePtr -> IO Matchx
+-- match :: Memory.SomePtr -> Vector Memory.SomePtr -> IO Matchx
 -- match = product @MatchLayout Mem.mallocBytes
 -- {-# NOINLINE match #-}
 

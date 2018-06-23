@@ -2,10 +2,12 @@ module Data.Graph.Store where
 
 import Prologue
 
-import qualified Data.Graph.Data.Graph.Class as Graph
-import qualified Data.Graph.Fold.Partition   as Partition
-import qualified Data.Graph.Store.Alloc      as Alloc
-import qualified Data.Graph.Store.Internal   as Serialize
+import qualified Data.Graph.Data.Graph.Class     as Graph
+import qualified Data.Graph.Fold.Partition       as Partition
+import qualified Data.Graph.Store.Alloc          as Alloc
+import qualified Data.Graph.Store.Buffer         as Buffer
+import qualified Data.Graph.Store.Internal       as Serialize
+import qualified Data.Graph.Store.Size.Discovery as Size
 
 import Data.Graph.Data.Component.Class (Component)
 -- import Data.Graph.Store.MemoryRegion   (MemoryRegion)
@@ -63,18 +65,20 @@ import Data.Graph.Data.Component.Class (Component)
 -- === SubGraph serialization === --
 ------------------------------------
 
-type Serializer comp m (comps :: [Type]) =
-    ( Partition.Partition comp  m
+type Serializer comp m =
+    ( MonadIO m
+    , Partition.Partition comp m
+    , Size.ClusterSizeDiscovery (Graph.DiscoverComponents m) m
     -- , Alloc.Allocator comps m
     -- , Serialize.ClusterSerializer comps m
     )
 
-serialize :: ∀ comp m layout comps.
-    ( comps ~ Graph.DiscoverComponents m
-    , Serializer comp m comps
-    ) => Component comp layout -> m () -- MemoryRegion
+serialize :: ∀ comp m layout. Serializer comp m
+    => Component comp layout -> m () -- MemoryRegion
 serialize comp = do
     clusters  <- Partition.partition comp
+    size      <- Size.clusterSize clusters
+    buffer    <- Buffer.alloc size
     -- memRegion <- Alloc.alloc @comps clusters
     pure ()
     -- serInfo   <- Serialize.serializeClusters @comps clusters memRegion
