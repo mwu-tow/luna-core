@@ -33,35 +33,51 @@ data Total
 
 -- === Class == --
 
-type family ConstantSize (t :: Type) (a :: k) :: Nat
-
-
--- === API === --
-
-type KnownConstantSize        t a = Type.KnownInt (ConstantSize t a)
-type KnownConstantStaticSize    a = KnownConstantSize Static  a
-type KnownConstantDynamicSize   a = KnownConstantSize Dynamic a
-type KnownConstantTotalSize     a = KnownConstantSize Total   a
-
-constantSize :: ∀ (t :: Type) a. KnownConstantSize t a => Int
-constantSize = Type.val' @(ConstantSize t a)
-{-# INLINE constantSize #-}
-
-constantStaticSize  :: ∀ a. KnownConstantStaticSize  a => Int
-constantDynamicSize :: ∀ a. KnownConstantDynamicSize a => Int
-constantTotalSize   :: ∀ a. KnownConstantTotalSize   a => Int
-constantStaticSize  = constantSize @Static  @a
-constantDynamicSize = constantSize @Dynamic @a
-constantTotalSize   = constantSize @Total   @a
-{-# INLINE constantStaticSize  #-}
-{-# INLINE constantDynamicSize #-}
-{-# INLINE constantTotalSize   #-}
+class KnownConstantSize a where
+    constantSize :: Int
 
 
 -- === Instances === --
 
-type instance ConstantSize t '[]       = 0
-type instance ConstantSize t (a ': as) = ConstantSize t a + ConstantSize t as
+instance KnownConstantSize '[] where
+    constantSize = 0
+    {-# INLINE constantSize #-}
+
+instance (KnownConstantSize a, KnownConstantSize as)
+      => KnownConstantSize (a ': as) where
+    constantSize = constantSize @a + constantSize @as
+    {-# INLINE constantSize #-}
+
+
+-- type family ConstantSize (t :: Type) (a :: k) :: Nat
+
+
+-- -- === API === --
+
+-- type KnownConstantSize        t a = Type.KnownInt (ConstantSize t a)
+-- type KnownConstantSize    a = KnownConstantSize Static  a
+-- type KnownConstantDynamicSize   a = KnownConstantSize Dynamic a
+-- type KnownConstantTotalSize     a = KnownConstantSize Total   a
+
+-- constantSize :: ∀ (t :: Type) a. KnownConstantSize t a => Int
+-- constantSize = Type.val' @(ConstantSize t a)
+-- {-# INLINE constantSize #-}
+
+-- constantSize  :: ∀ a. KnownConstantSize  a => Int
+-- constantDynamicSize :: ∀ a. KnownConstantDynamicSize a => Int
+-- constantTotalSize   :: ∀ a. KnownConstantTotalSize   a => Int
+-- constantSize  = constantSize @Static  @a
+-- constantDynamicSize = constantSize @Dynamic @a
+-- constantTotalSize   = constantSize @Total   @a
+-- {-# INLINE constantSize  #-}
+-- {-# INLINE constantDynamicSize #-}
+-- {-# INLINE constantTotalSize   #-}
+
+
+-- -- === Instances === --
+
+-- type instance ConstantSize t '[]       = 0
+-- type instance ConstantSize t (a ': as) = ConstantSize t a + ConstantSize t as
 
 
 
@@ -121,9 +137,9 @@ totalSize2   = size2 @Total   ; {-# INLINE totalSize2   #-}
 -- === Defaults === --
 
 instance {-# OVERLAPPABLE #-}
-    (KnownConstantSize Static a, Applicative m)
+    (KnownConstantSize a, Applicative m)
       => KnownSize Static m a where
-    size = \_ -> pure $ constantStaticSize @a
+    size = \_ -> pure $ constantSize @a
     {-# INLINE size #-}
 
 instance {-# OVERLAPPABLE #-}
@@ -175,15 +191,15 @@ class Poke t m a where
 
 -- === API === --
 
-type StaticPeek t m a = (Peek t m a, KnownConstantSize Static a)
-type StaticPoke t m a = (Poke t m a, KnownConstantSize Static a)
+type StaticPeek t m a = (Peek t m a, KnownConstantSize a)
+type StaticPoke t m a = (Poke t m a, KnownConstantSize a)
 
 peekByteOff :: ∀ t m a. Peek t m a       => Ptr a -> Int -> m a
 pokeByteOff :: ∀ t m a. Poke t m a       => Ptr a -> Int -> a -> m ()
 peekElemOff :: ∀ t m a. StaticPeek t m a => Ptr a -> Int -> m a
 pokeElemOff :: ∀ t m a. StaticPoke t m a => Ptr a -> Int -> a -> m ()
-peekElemOff = \ptr i -> peekByteOff @t ptr (i * constantStaticSize @a)
-pokeElemOff = \ptr i -> pokeByteOff @t ptr (i * constantStaticSize @a)
+peekElemOff = \ptr i -> peekByteOff @t ptr (i * constantSize @a)
+pokeElemOff = \ptr i -> pokeByteOff @t ptr (i * constantSize @a)
 peekByteOff = peek @t .: plusPtr
 pokeByteOff = poke @t .: plusPtr
 {-# INLINE peekByteOff #-}
@@ -198,7 +214,7 @@ pokeByteOff = poke @t .: plusPtr
 #define STORABLE(tp,size,aligment) \
 instance MonadIO m => Peek t m (tp) ; \
 instance MonadIO m => Poke t m (tp) ; \
-type instance ConstantSize Static (tp) = size
+instance KnownConstantSize (tp) where constantSize = size ; {-# INLINE constantSize #-}
 
 STORABLE(Char,SIZEOF_INT32,ALIGNMENT_INT32)
 STORABLE(Int,SIZEOF_HSINT,ALIGNMENT_HSINT)

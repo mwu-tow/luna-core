@@ -5,7 +5,8 @@ module Memory.Data.Region where
 import Prologue
 
 import qualified Foreign.Storable.Class as Storable
-import qualified Memory.Data.Ptr        as Memory 
+import qualified Memory.Data.Ptr        as Memory
+import qualified Type.Known             as Type
 
 
 
@@ -21,8 +22,13 @@ makeLenses ''ConstantRegion
 
 -- === Instances === --
 
-type instance Storable.ConstantSize Storable.Static (ConstantRegion n a)
-            = Storable.ConstantSize Storable.Static a * n
+instance (Storable.KnownConstantSize a, Type.KnownInt n)
+      => Storable.KnownConstantSize (ConstantRegion n t a) where
+    constantSize = Type.val' @n * Storable.constantSize @a
+    {-# INLINE constantSize #-}
+
+-- type instance Storable.ConstantSize Storable.Static (ConstantRegion n a)
+--             = Storable.ConstantSize Storable.Static a * n
 
 -- instance Applicative m
 --       => Storable.Peek Struct.Field m (ConstantRegion n a) where

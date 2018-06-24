@@ -36,8 +36,10 @@ newtype ComponentSet   tag layout = ComponentSet (ComponentSet__ tag layout)
 
 type instance Item (ComponentSet tag layout) = Component tag layout
 
-type instance Storable.ConstantSize t (ComponentSet n a)
-            = Storable.ConstantSize t (ComponentSet__ n a)
+instance Storable.KnownConstantSize (ComponentSet__ n a)
+      => Storable.KnownConstantSize (ComponentSet n a) where
+    constantSize = Storable.constantSize @(ComponentSet__ n a)
+    {-# INLINE constantSize #-}
 
 instance Storable.KnownSize t m (ComponentSet__ n a)
       => Storable.KnownSize t m (ComponentSet n a) where

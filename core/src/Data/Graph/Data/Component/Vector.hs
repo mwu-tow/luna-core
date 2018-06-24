@@ -15,7 +15,7 @@ import qualified Data.Vector.Storable.Foreign as Vector
 import qualified Foreign.Storable.Class       as Storable
 import qualified Foreign.Storable1.Deriving   as Storable1
 
-import Data.SmallAutoVector.Mutable.Storable (SmallVector)
+import Data.Mutable.Storable.SmallAutoVector (SmallVector)
 import Foreign.DynamicStorable               (DynamicStorable)
 import Foreign.Storable                      (Storable)
 

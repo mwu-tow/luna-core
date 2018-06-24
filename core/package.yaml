@@ -126,6 +126,7 @@ tests:
             - hspec-expectations-lifted
             - luna-core
             - luna-cpp-containers
+            - luna-data-storable
             - luna-exception
             - luna-foreign-utils
             - luna-typelevel

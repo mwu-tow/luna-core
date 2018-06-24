@@ -1,7 +1,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 
-module Data.SmallAutoVector.Mutable.Storable
-    (module Data.SmallAutoVector.Mutable.Storable, module X) where
+module Data.Mutable.Storable.SmallAutoVector
+    (module Data.Mutable.Storable.SmallAutoVector, module X) where
 import Data.Mutable.Class as X
 
 import Prologue hiding (FromList, Read, ToList, empty, length, toList,
@@ -9,6 +9,7 @@ import Prologue hiding (FromList, Read, ToList, empty, length, toList,
 
 import qualified Data.AutoVector.Mutable.Storable as Vector
 import qualified Data.Construction                as Data
+import qualified Data.Convert2.Class              as Convert
 import qualified Data.List                        as List
 import qualified Data.Property                    as Property
 import qualified Data.Storable                    as Struct
@@ -16,9 +17,8 @@ import qualified Foreign.Marshal.Alloc            as Mem
 import qualified Foreign.Marshal.Utils            as Mem
 import qualified Foreign.Storable                 as StdStorable
 import qualified Foreign.Storable.Class           as Storable
+import qualified Memory                           as Memory
 import qualified Type.Known                       as Type
-import qualified Data.Convert2.Class as Convert
-import qualified Memory as Memory
 
 import Data.Storable          (type (-::), UnmanagedStruct)
 import Foreign.Ptr            (Ptr, minusPtr, nullPtr, plusPtr)
@@ -49,13 +49,10 @@ unsafeNullMemChunk = wrap nullPtr
 
 -- === Instances === --
 
-type instance Storable.ConstantSize Storable.Static (MemChunk n a)
-            = Storable.ConstantSize Storable.Static a * n
-
--- instance (Storable.KnownStaticSize a, Type.KnownInt n)
---       => Storable.KnownSize Storable.Static (MemChunk n a) where
---     size = Type.val' @n * Storable.staticSize @a
---     {-# INLINE size #-}
+instance (Storable.KnownConstantSize a, Type.KnownInt n)
+      => Storable.KnownConstantSize (MemChunk n a) where
+    constantSize = Type.val' @n * Storable.constantSize @a
+    {-# INLINE constantSize #-}
 
 instance Applicative m
       => Storable.Peek Struct.Field m (MemChunk n a) where
@@ -115,20 +112,15 @@ usesDynamicMemory = fmap (/= nullPtr) . Struct.readField _externalMem
 
 -- === API Instances === --
 
--- instance (Type.KnownInt n, Storable.KnownStaticSize t a)
---       => Storable.KnownStaticSize t (SmallVector n a) where
---     staticSize = Storable.staticSize @t @Int                -- length
---                + Storable.staticSize @t @Int                -- capacity
---                + Storable.staticSize @t @Int                -- ptrOff
---                + (Storable.staticSize @t @a * Type.val' @n) -- elems
---     {-# INLINE staticSize #-}
-type instance Storable.ConstantSize t (SmallVector n a)
-            = Storable.ConstantSize t (SmallVector__ n a)
+instance Storable.KnownConstantSize (SmallVector__ n a)
+      => Storable.KnownConstantSize (SmallVector n a) where
+    constantSize = Storable.constantSize @(SmallVector__ n a)
+    {-# INLINE constantSize #-}
 
-instance (MonadIO m, Storable.KnownConstantStaticSize a)
+instance (MonadIO m, Storable.KnownConstantSize a)
       => Storable.KnownSize Storable.Dynamic m (SmallVector n a) where
     size = \a -> usesDynamicMemory a >>= \case
-        True  -> (Storable.constantStaticSize @a *) <$> size a
+        True  -> (Storable.constantSize @a *) <$> size a
         False -> pure 0
     {-# INLINE size #-}
 
@@ -144,12 +136,12 @@ instance (MonadIO m, Type.KnownInt n)
 
 instance
     ( MonadIO m
-    , Storable.KnownConstantStaticSize (SmallVector n a)
+    , Storable.KnownConstantSize (SmallVector n a)
     , Type.KnownInt n
     ) => New m (SmallVector n a) where
     new = do
         ptr <- liftIO . Mem.mallocBytes
-             $ Storable.constantStaticSize @(SmallVector n a)
+             $ Storable.constantSize @(SmallVector n a)
         placementNew ptr
     {-# INLINE new #-}
 
@@ -166,7 +158,7 @@ instance MonadIO m
 instance MonadIO m
       => Free m (SmallVector n a) where
     free = \a -> liftIO $ do
-        whenM (usesDynamicMemory a) 
+        whenM (usesDynamicMemory a)
             $ Mem.free =<< Struct.readField _externalMem a
         Struct.free a
     {-# INLINE free #-}
@@ -200,14 +192,14 @@ instance (Monad m, New m (SmallVector n a), PushBack m (SmallVector n a))
         pure a
     {-# INLINE fromList #-}
 
-instance (MonadIO m, Storable.KnownConstantStaticSize a)
+instance (MonadIO m, Storable.KnownConstantSize a)
       => Grow m (SmallVector n a) where
     grow = \a -> do
         oldCapacity <- capacity a
         elemCount   <- size     a
         ptr         <- elemsPtr a
         let newSize       = if oldCapacity == 0 then 16 else oldCapacity * 2
-            elemByteSize  = Storable.constantStaticSize @a
+            elemByteSize  = Storable.constantSize @a
             bytesToMalloc = elemByteSize * newSize
             bytesToCopy   = elemByteSize * elemCount
         newElemsPtr <- liftIO $ Mem.mallocBytes bytesToMalloc
@@ -232,14 +224,14 @@ instance
     ( MonadIO m
     , Grow  m (SmallVector n a)
     , Write m (SmallVector n a)
-    , Storable.KnownConstantStaticSize a
+    , Storable.KnownConstantSize a
     ) => InsertAt m (SmallVector n a) where
     insertAt = \a ix v -> do
         siz <- size     a
         cap <- capacity a
         when (siz == cap) $ grow a
         ptr0 <- elemsPtr a
-        let elSize  = Storable.constantStaticSize @a
+        let elSize  = Storable.constantSize @a
             ptrIx   = ptr0  `plusPtr` (elSize * ix)
             ptrIx'  = ptrIx `plusPtr` elSize
             byteOff = elSize * (siz - ix)
@@ -250,12 +242,12 @@ instance
 
 instance
     ( MonadIO m
-    , Storable.KnownConstantStaticSize a
+    , Storable.KnownConstantSize a
     ) => RemoveAt m (SmallVector n a) where
     removeAt = \a ix -> do
         siz  <- size a
         ptr0 <- elemsPtr a
-        let elSize  = Storable.constantStaticSize @a
+        let elSize  = Storable.constantSize @a
             ptrIx   = ptr0  `plusPtr` (elSize * ix)
             ptrIx'  = ptrIx `plusPtr` elSize
             byteOff = elSize * (siz - ix - 1)
@@ -272,10 +264,10 @@ instance Applicative m
     peek = pure . coerce
     {-# INLINE peek #-}
 
-instance (MonadIO m, Storable.KnownConstantStaticSize (SmallVector n a), Show (SmallVector n a))
+instance (MonadIO m, Storable.KnownConstantSize (SmallVector n a), Show (SmallVector n a))
       => Storable.Poke View m (SmallVector n a) where
     poke = \ptr a ->
-        let size = Storable.constantStaticSize @(SmallVector n a)
+        let size = Storable.constantSize @(SmallVector n a)
         in  liftIO $ Mem.copyBytes ptr (coerce a) size
 
     {-# INLINE poke #-}
@@ -299,11 +291,11 @@ type instance Property.Get Dynamics (SmallVector n a) = Dynamic
 
 instance
     ( Storable.Peek View IO a
-    , Storable.KnownConstantStaticSize (SmallVector n a)
+    , Storable.KnownConstantSize (SmallVector n a)
     , Storable View IO (SmallVector n a)
     , Type.KnownInt n
     ) => StdStorable.Storable (SmallVector n a) where
-    sizeOf    = \ ~_ -> Storable.constantStaticSize @(SmallVector n a)
+    sizeOf    = \ ~_ -> Storable.constantSize @(SmallVector n a)
     alignment = \ ~_ -> StdStorable.alignment (undefined :: Int)
     peek      = Storable.peek @View
     poke      = Storable.poke @View
@@ -315,6 +307,6 @@ instance
 instance MonadIO m
       => Data.Destructor1 m (SmallVector n) where
     destruct1 = \a -> liftIO $ do
-        whenM (usesDynamicMemory a) 
+        whenM (usesDynamicMemory a)
             $ Mem.free =<< Struct.readField _externalMem a
     {-# INLINE destruct1 #-}

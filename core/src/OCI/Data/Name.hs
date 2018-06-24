@@ -85,8 +85,9 @@ instance IsString           Name where fromString = convert                     
 
 instance MonadIO m => Storable.Peek t m Name
 instance MonadIO m => Storable.Poke t m Name
-type instance Storable.ConstantSize t Name
-            = Storable.ConstantSize t (Unwrapped Name)
+instance Storable.KnownConstantSize Name where
+    constantSize = Storable.constantSize @(Unwrapped Name)
+    {-# INLINE constantSize #-}
 
 
 ----------------------

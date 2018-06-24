@@ -24,7 +24,7 @@ import qualified Type.Data.Map                          as TypeMap
 import Data.Graph.Component.Edge             (type (*-*), Edge, Edges)
 import Data.Graph.Component.Node.Layer       (Model)
 import Data.Graph.Data.Component.Vector      (ComponentVector)
-import Data.SmallAutoVector.Mutable.Storable (SmallVector)
+import Data.Mutable.Storable.SmallAutoVector (SmallVector)
 import Data.Vector.Storable.Foreign          (Vector)
 import Foreign.Storable                      (Storable)
 import Language.Haskell.TH                   (Type (AppT))

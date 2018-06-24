@@ -8,13 +8,13 @@ import Prologue hiding (FromList, Read, ToList, fromList, length, toList,
                  unsafeRead)
 
 import qualified Data.Construction                     as Data
-import qualified Data.SmallAutoVector.Mutable.Storable as SmallVector
+import qualified Data.Mutable.Storable.SmallAutoVector as SmallVector
 import qualified Data.Storable                         as Struct
 import qualified Foreign.Storable                      as StdStorable
 import qualified Foreign.Storable.Class                as Storable
 import qualified Type.Known                            as Type
 
-import Data.SmallAutoVector.Mutable.Storable (MemChunk, SmallVector)
+import Data.Mutable.Storable.SmallAutoVector (MemChunk, SmallVector)
 import Foreign.Storable.Class                (Copy, Storable, View)
 import System.IO.Unsafe                      (unsafeDupablePerformIO)
 
@@ -74,8 +74,10 @@ lookupAndApp__ ffound fmissing s a = go where
 
 -- === API Instances === --
 
-type instance Storable.ConstantSize t (SmallSet n a)
-            = Storable.ConstantSize t (SmallSet__ n a)
+instance Storable.KnownConstantSize (SmallSet__ n a)
+      => Storable.KnownConstantSize (SmallSet n a) where
+    constantSize = Storable.constantSize @(SmallSet__ n a)
+    {-# INLINABLE constantSize #-}
 
 instance Storable.KnownSize t m (SmallSet__ n a)
       => Storable.KnownSize t m (SmallSet n a) where

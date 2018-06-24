@@ -39,7 +39,7 @@ import Data.Generics.Traversable             (GTraversable)
 import Data.Graph.Data.Component.Class       (Component)
 import Data.Graph.Data.Component.Set         (ComponentSet)
 import Data.Graph.Data.Component.Vector      (ComponentVector)
-import Data.SmallAutoVector.Mutable.Storable (SmallVector)
+import Data.Mutable.Storable.SmallAutoVector (SmallVector)
 -- import Data.Graph.Store.External        (ExternalFieldStorable,
 --                                          ExternalStorable)
 import Data.Vector.Storable.Foreign (Vector)

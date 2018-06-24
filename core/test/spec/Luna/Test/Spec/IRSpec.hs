@@ -22,7 +22,7 @@ import qualified Data.Graph.Store.Size.Discovery       as Size
 import qualified Data.Mutable.Class                    as Mutable
 import qualified Data.Mutable.Storable.SmallSet        as SmallSet
 import qualified Data.Set                              as StdSet
-import qualified Data.SmallAutoVector.Mutable.Storable as SmallVector
+import qualified Data.Mutable.Storable.SmallAutoVector as SmallVector
 import qualified Data.Vector.Storable.Foreign          as Vector
 import qualified Foreign.Marshal.Alloc                 as Mem
 import qualified Foreign.Storable.Utils                as Storable
@@ -34,7 +34,7 @@ import qualified Luna.Pass.Basic                       as Pass
 import qualified Luna.Pass.Scheduler                   as Scheduler
 
 import Data.Graph.Data.Graph.Class           (Graph)
-import Data.SmallAutoVector.Mutable.Storable (SmallVector)
+import Data.Mutable.Storable.SmallAutoVector (SmallVector)
 import Luna.Pass                             (Pass)
 import Luna.Pass.Basic                       (Compilation)
 import Test.Hspec                            (Spec, describe, it)

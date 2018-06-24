@@ -76,6 +76,12 @@ instance Struct.IsStruct (Buffer graph)
 type instance Memory.Management (Buffer graph) = 'Memory.Managed
 
 
+-- === Aliases === --
+
+type BufferM       m = Buffer       (Graph.Discover m)
+type HeaderLayoutM m = HeaderLayout (Graph.Discover m)
+
+
 -- === Fields === --
 
 field_staticDataRegionSize  :: Struct.FieldRef "staticDataRegionSize"
@@ -98,11 +104,12 @@ dataRegion = coerce . Struct.fieldPtr field_memoryRegion
 
 type Alloc m =
     ( MonadIO m
-    , Storable.KnownConstantStaticSize (HeaderLayout (Graph.Discover m))
+    , Graph.KnownComponentNumberM m
+    -- , Storable.KnownConstantStaticSize (HeaderLayout (Graph.Discover m))
     )
-alloc :: ∀ m. Alloc m => Size -> m (Buffer (Graph.Discover m))
+alloc :: ∀ m. Alloc m => Size -> m (BufferM m)
 alloc = \size -> liftIO $ do
-    let headerSize = Storable.constantStaticSize @(HeaderLayout (Graph.Discover m))
+    let headerSize = Storable.constantSize @(HeaderLayoutM m)
         bodySize   = Size.total size
         totalSize  = headerSize + bodySize
     ptr <- ForeignPtr.mallocForeignPtrBytes totalSize

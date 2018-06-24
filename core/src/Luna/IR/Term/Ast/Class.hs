@@ -8,7 +8,7 @@ import Prologue hiding (Imp, imp, seq)
 
 import qualified Data.Generics.Traversable.Deriving as GTraversable
 -- import qualified Data.Graph.Store.External          as ExternalStorable
-import qualified Data.SmallAutoVector.Mutable.Storable as SmallVector
+import qualified Data.Mutable.Storable.SmallAutoVector as SmallVector
 import qualified Foreign.Storable.Deriving             as Storable
 import qualified Luna.IR.Term.Ast.Invalid              as Invalid
 import qualified Luna.IR.Term.Format                   as Format

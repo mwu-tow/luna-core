@@ -27,7 +27,7 @@ import Data.Graph.Data.Component.Set         (ComponentSet)
 import Data.Graph.Data.Component.Vector      (ComponentVector)
 import Data.Graph.Store.Size.Class           (DynamicSize, Size (Size))
 import Data.PtrSet.Mutable                   (IsPtr, UnmanagedPtrSet)
-import Data.SmallAutoVector.Mutable.Storable (SmallVector)
+import Data.Mutable.Storable.SmallAutoVector (SmallVector)
 import Data.Vector.Storable.Foreign          (Vector)
 import Foreign.DynamicStorable               (DynamicStorable)
 import Foreign.Ptr                           (Ptr, plusPtr)
@@ -152,7 +152,7 @@ instance Applicative m
 
 instance
     ( TypeMap.SplitHead (ComponentList comp) (ComponentLists comps)
-    , Storable.KnownConstantStaticSize comp
+    , Storable.KnownConstantSize comp
     , DynamicDiscovery m (Component.Some comp)
     , ClusterSizeDiscovery comps m
     , Monad m
@@ -161,7 +161,7 @@ instance
         let (  !compList
              , !cluster') = Partition.splitHead cluster
             sizeDiscovery = \acc -> fmap (acc <>) . discoverDynamic
-            compSize      = Storable.constantStaticSize @comp
+            compSize      = Storable.constantSize @comp
             staticSize    = compSize * ComponentList.length compList
         dynamicSize <- ComponentList.foldlM sizeDiscovery mempty compList
         foldClusterSize cluster' $! acc <> Size staticSize dynamicSize

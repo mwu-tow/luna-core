@@ -54,8 +54,10 @@ type family MapFieldSigName fields where
     MapFieldSigName (f ': fs) = FieldSigName f ': MapFieldSigName fs
     MapFieldSigName '[]       = '[]
 
-type instance Storable.ConstantSize t ('FieldSig n a)
-            = Storable.ConstantSize t a
+instance Storable.KnownConstantSize a
+      => Storable.KnownConstantSize ('FieldSig n a) where
+    constantSize = Storable.constantSize @a
+    {-# INLINE constantSize #-}
 
 
 -- === FieldType === --
@@ -107,8 +109,10 @@ makeLenses ''Struct
 
 type instance Memory.Management (Struct t _) = t
 
-type instance Storable.ConstantSize s (Struct t fields)
-            = Storable.ConstantSize s (MapFieldSigType fields)
+instance Storable.KnownConstantSize (MapFieldSigType fields)
+      => Storable.KnownConstantSize (Struct t fields) where
+    constantSize = Storable.constantSize @(MapFieldSigType fields)
+    {-# INLINE constantSize #-}
 
 deriving instance Eq     (Struct__ t fields) => Eq     (Struct t fields)
 deriving instance NFData (Struct__ t fields) => NFData (Struct t fields)
@@ -177,11 +181,11 @@ class HasField__ t (name :: Symbol) (fs :: [FieldSig]) (idx :: Maybe Nat) where
 
 instance
     ( fields' ~ List.Take idx (MapFieldSigType fields)
-    , Storable.KnownConstantStaticSize fields'
+    , Storable.KnownConstantSize fields'
     , Memory.Plus t
     ) => HasField__ t name fields ('Just idx) where
     fieldPtr__ = \(Struct !ptr) ->
-        let off = Storable.constantStaticSize @fields'
+        let off = Storable.constantSize @fields'
         in  ptr `Memory.plus` off
     {-# INLINE fieldPtr__ #-}
 
@@ -234,10 +238,10 @@ placementNew = placementWith . pure . Memory.coercePtr
 construct :: ∀ a.
     ( Constructor a
     , Memory.Malloc (Memory.Management a)
-    , Storable.KnownConstantStaticSize (Fields a)
+    , Storable.KnownConstantSize (Fields a)
     ) => ConstructorSig a
 construct = placementWith @a (Memory.mallocBytes size) where
-    size = Storable.constantStaticSize @(Fields a)
+    size = Storable.constantSize @(Fields a)
 {-# INLINE construct #-}
 
 free :: ∀ a m. (IsStruct a, MonadIO m, Memory.AssertUnmanaged a) => a -> m ()
@@ -264,7 +268,7 @@ class Cons__ a types where
 
 instance {-# OVERLAPPABLE #-}
     ( Cons__ a fs
-    , Storable.KnownConstantStaticSize f
+    , Storable.KnownConstantSize f
     , Storable.Poke Field IO f
     , Memory.WithRawPtr (Memory.Management a) IO
     , Memory.Plus (Memory.Management a)
@@ -272,7 +276,7 @@ instance {-# OVERLAPPABLE #-}
     cons__ = \alloc f a -> cons__ @a @fs alloc $ \ptr ->
         let (!m, !ptr') = f ptr
             f'          = m >> Memory.withRawPtr ptr' (flip (Storable.poke @Field) a . coerce)
-            ptr''       = ptr' `Memory.plus` Storable.constantStaticSize @f
+            ptr''       = ptr' `Memory.plus` Storable.constantSize @f
         in  (f', ptr'')
     {-# INLINE cons__ #-}
 

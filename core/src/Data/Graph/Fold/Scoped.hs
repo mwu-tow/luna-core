@@ -27,7 +27,7 @@ import Data.Graph.Data.Component.Class       (Component)
 import Data.Graph.Data.Component.Set         (ComponentSet)
 import Data.Graph.Data.Component.Vector      (ComponentVector)
 import Data.Set                              (Set)
-import Data.SmallAutoVector.Mutable.Storable (SmallVector)
+import Data.Mutable.Storable.SmallAutoVector (SmallVector)
 import Data.Vector.Storable.Foreign          (Vector)
 import Foreign.Ptr.Utils                     (SomePtr)
 import Type.Data.Bool                        (Not, type (||))
@@ -80,7 +80,7 @@ class Monad m => ComponentBuilder t m comp where
 -- === Instances === --
 
 instance {-# OVERLAPPABLE #-}
-         ( layers ~ Graph.DiscoverComponentLayers m comp
+         ( layers ~ Graph.ComponentLayersM m comp
          , ComponentBuilder t m comp
          , LayersFoldableBuilder__ t layers m )
       => Fold.Builder (Scoped t) m (Component comp layout) where
@@ -88,7 +88,7 @@ instance {-# OVERLAPPABLE #-}
     {-# INLINE build #-}
 
 instance {-# OVERLAPPABLE #-}
-         ( layers ~ Graph.DiscoverComponentLayers m comp
+         ( layers ~ Graph.ComponentLayersM m comp
          , ComponentBuilder t m comp
          , LayersFoldableBuilder__ t layers m )
       => Fold.Builder1 (Scoped t) m (Component comp) where

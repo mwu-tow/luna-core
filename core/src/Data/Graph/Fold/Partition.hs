@@ -47,8 +47,8 @@ splitHead = fmap wrap . TypeMap.splitHead . unwrap
 
 -- === Definition === --
 
-type ClustersM  m     = Clusters  (Graph.DiscoverComponents m)
-type DiscoveryM m     = Discovery (Graph.DiscoverComponents m)
+type ClustersM  m     = Clusters  (Graph.ComponentsM m)
+type DiscoveryM m     = Discovery (Graph.ComponentsM m)
 
 data Discovery  (comps :: [Type]) deriving (Generic)
 type instance Fold.Result     (Discovery comps) = Clusters comps
