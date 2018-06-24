@@ -8,6 +8,8 @@ import qualified Data.ByteString.Internal    as ByteString
 import qualified Data.Convert2               as Convert
 import qualified Data.Graph.Data.Graph.Class as Graph
 import qualified Data.Graph.Store.Size.Class as Size
+import qualified Data.Mutable.Class          as Mutable
+import qualified Data.Mutable.Storable.Array as Array
 import qualified Data.Storable               as Struct
 import qualified Foreign.ForeignPtr          as ForeignPtr
 import qualified Foreign.Storable.Class      as Storable
@@ -18,13 +20,13 @@ import qualified Type.Data.List              as List
 
 import Data.ByteString             (ByteString)
 import Data.Graph.Store.Size.Class (Size)
+import Data.Mutable.Storable.Array (ManagedArray)
 import Data.Storable               (type (-::), ManagedStruct)
 import Foreign.ForeignPtr          (touchForeignPtr)
 import Foreign.ForeignPtr.Unsafe   (unsafeForeignPtrToPtr)
 import Foreign.ForeignPtr.Utils    (SomeForeignPtr)
 import Foreign.Ptr.Utils           (SomePtr)
 import Type.Data.Semigroup         (type (<>))
-
 
 
 ------------------------------
@@ -35,7 +37,7 @@ import Type.Data.Semigroup         (type (<>))
 
 newtype UnknownSizeMemRegion t a = UnknownSizeMemRegion (Memory.Ptr t a)
 
-unsafeNull :: Memory.NullPtr t => UnknownSizeMemRegion t a
+unsafeNull :: Memory.PtrType t => UnknownSizeMemRegion t a
 unsafeNull = UnknownSizeMemRegion Memory.nullPtr
 {-# INLINE unsafeNull #-}
 
@@ -59,9 +61,7 @@ type HeaderLayout graph =
    '[ "staticDataRegionSize"  -:: Int
     , "dynamicDataRegionSize" -:: Int
     , "pointerDataRegionSize" -:: Int
-    , "componentElems"        -:: Memory.ConstantRegion
-                                  (List.Length (Graph.Components graph))
-                                  'Memory.Managed Int
+    , "componentElems"        -:: ManagedArray (Graph.ComponentNumber graph) Int
     ]
 
 type BufferDataRegion = UnknownSizeMemRegion 'Memory.Managed ()
@@ -87,10 +87,12 @@ type HeaderLayoutM m = HeaderLayout (Graph.Discover m)
 field_staticDataRegionSize  :: Struct.FieldRef "staticDataRegionSize"
 field_dynamicDataRegionSize :: Struct.FieldRef "dynamicDataRegionSize"
 field_pointerDataRegionSize :: Struct.FieldRef "pointerDataRegionSize"
+field_componentElems        :: Struct.FieldRef "componentElems"
 field_memoryRegion          :: Struct.FieldRef "memoryRegion"
 field_staticDataRegionSize  = Struct.field ; {-# INLINE field_staticDataRegionSize  #-}
 field_dynamicDataRegionSize = Struct.field ; {-# INLINE field_dynamicDataRegionSize #-}
 field_pointerDataRegionSize = Struct.field ; {-# INLINE field_pointerDataRegionSize #-}
+field_componentElems        = Struct.field ; {-# INLINE field_componentElems        #-}
 field_memoryRegion          = Struct.field ; {-# INLINE field_memoryRegion          #-}
 
 
@@ -99,27 +101,35 @@ dataRegion :: HasDataRegion graph => Buffer graph -> BufferDataRegion
 dataRegion = coerce . Struct.fieldPtr field_memoryRegion
 {-# INLINE dataRegion #-}
 
+componentElems :: Buffer graph -> ManagedArray (Graph.ComponentNumber graph) Int
+componentElems = coerce . Struct.fieldPtr field_componentElems
+{-# INLINE componentElems #-}
+
 
 -- === API === --
 
-type Alloc m =
-    ( MonadIO m
-    , Graph.KnownComponentNumberM m
-    -- , Storable.KnownConstantStaticSize (HeaderLayout (Graph.Discover m))
-    )
-alloc :: ∀ m. Alloc m => Size -> m (BufferM m)
-alloc = \size -> liftIO $ do
+type Alloc m = (MonadIO m, Graph.KnownComponentNumberM m)
+
+alloc :: ∀ m. Alloc m => [Int] -> Size -> m (BufferM m)
+alloc = \ccount size -> liftIO $ do
     let headerSize = Storable.constantSize @(HeaderLayoutM m)
         bodySize   = Size.total size
         totalSize  = headerSize + bodySize
-    ptr <- ForeignPtr.mallocForeignPtrBytes totalSize
-    undefined
-    -- Struct.placementNew @(Buffer (Graph.Discover m))
-    --     (Convert.convert ptr)
-    --     (size ^. Size.static)
-    --     (size ^. (Size.dynamic . Size.dataRegion))
-    --     (size ^. (Size.dynamic . Size.ptrRegion))
-    --     unsafeNull
+        staticRegionSize = size ^. Size.static
+        dataRegionSize   = size ^. (Size.dynamic . Size.dataRegion)
+        ptrRegionSize    = size ^. (Size.dynamic . Size.ptrRegion)
+
+    ptr <- Memory.mallocBytes totalSize
+
+    let struct   = Struct.unsafeCastFromPtr ptr
+        elsCount = componentElems struct
+
+    Struct.writeField field_staticDataRegionSize  struct staticRegionSize
+    Struct.writeField field_dynamicDataRegionSize struct dataRegionSize
+    Struct.writeField field_pointerDataRegionSize struct ptrRegionSize
+    Mutable.unsafeWriteFromList elsCount ccount
+
+    pure struct
 
 
 -- === Conversions === --
@@ -137,6 +147,10 @@ unsafeThaw :: Monad m => ByteString -> m (Buffer (Graph.Discover m))
 unsafeThaw = \(ByteString.PS ptr _ _) -> pure $ coerce ptr
 {-# INLINE unsafeThaw #-}
 
+
+-- === Debug Instances === --
+
+deriving instance Show (Buffer graph)
 
 -- newtype Header = Header
 --     { _size :: Size

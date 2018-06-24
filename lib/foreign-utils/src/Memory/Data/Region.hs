@@ -47,7 +47,7 @@ instance (Storable.KnownConstantSize a, Type.KnownInt n)
 newtype UnknownSizeRegion t a = UnknownSizeRegion (Memory.Ptr t a)
 makeLenses ''UnknownSizeRegion
 
-unsafeNull :: Memory.NullPtr t => UnknownSizeRegion t a
+unsafeNull :: Memory.PtrType t => UnknownSizeRegion t a
 unsafeNull = UnknownSizeRegion Memory.nullPtr
 {-# INLINE unsafeNull #-}
 

@@ -20,9 +20,9 @@ import qualified Data.Graph.Fold.SubTree               as SubTree
 import qualified Data.Graph.Store                      as Store
 import qualified Data.Graph.Store.Size.Discovery       as Size
 import qualified Data.Mutable.Class                    as Mutable
+import qualified Data.Mutable.Storable.SmallAutoVector as SmallVector
 import qualified Data.Mutable.Storable.SmallSet        as SmallSet
 import qualified Data.Set                              as StdSet
-import qualified Data.Mutable.Storable.SmallAutoVector as SmallVector
 import qualified Data.Vector.Storable.Foreign          as Vector
 import qualified Foreign.Marshal.Alloc                 as Mem
 import qualified Foreign.Storable.Utils                as Storable
@@ -307,6 +307,10 @@ test = describe "test" $ it "test" $ runPass' $ do
 
     print =<< Size.discoverDynamic v
     print vn
+
+    print "--------------------------"
+
+    Store.serialize u
     True `shouldBe` True
 
 spec :: Spec

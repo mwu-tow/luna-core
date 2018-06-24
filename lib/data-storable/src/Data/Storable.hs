@@ -182,19 +182,19 @@ class HasField__ t (name :: Symbol) (fs :: [FieldSig]) (idx :: Maybe Nat) where
 instance
     ( fields' ~ List.Take idx (MapFieldSigType fields)
     , Storable.KnownConstantSize fields'
-    , Memory.Plus t
+    , Memory.PtrType t
     ) => HasField__ t name fields ('Just idx) where
     fieldPtr__ = \(Struct !ptr) ->
         let off = Storable.constantSize @fields'
         in  ptr `Memory.plus` off
     {-# INLINE fieldPtr__ #-}
 
-instance (HasField name a, Storable.Peek Field IO (FieldType name a), Memory.WithRawPtr (Memory.Management a) IO)
+instance (HasField name a, Storable.Peek Field IO (FieldType name a), Memory.PtrType (Memory.Management a))
       => FieldReader name a where
     readFieldByNameIO = \a -> Memory.withRawPtr (fieldPtrByName @name a) $ Storable.peek @Field
     {-# INLINE readFieldByNameIO #-}
 
-instance (HasField name a, Storable.Poke Field IO (FieldType name a), Memory.WithRawPtr (Memory.Management a) IO)
+instance (HasField name a, Storable.Poke Field IO (FieldType name a), Memory.PtrType (Memory.Management a))
       => FieldWriter name a where
     writeFieldByNameIO = \a val -> Memory.withRawPtr (fieldPtrByName @name a) $ flip (Storable.poke @Field) val
     {-# INLINE writeFieldByNameIO #-}
@@ -237,7 +237,7 @@ placementNew = placementWith . pure . Memory.coercePtr
 
 construct :: ∀ a.
     ( Constructor a
-    , Memory.Malloc (Memory.Management a)
+    , Memory.PtrType (Memory.Management a)
     , Storable.KnownConstantSize (Fields a)
     ) => ConstructorSig a
 construct = placementWith @a (Memory.mallocBytes size) where
@@ -270,8 +270,7 @@ instance {-# OVERLAPPABLE #-}
     ( Cons__ a fs
     , Storable.KnownConstantSize f
     , Storable.Poke Field IO f
-    , Memory.WithRawPtr (Memory.Management a) IO
-    , Memory.Plus (Memory.Management a)
+    , Memory.PtrType (Memory.Management a)
     ) => Cons__ a (f ': fs) where
     cons__ = \alloc f a -> cons__ @a @fs alloc $ \ptr ->
         let (!m, !ptr') = f ptr
@@ -283,8 +282,7 @@ instance {-# OVERLAPPABLE #-}
 instance
     ( Cons__ a '[]
     , Storable.Poke Field IO f
-    , Memory.WithRawPtr (Memory.Management a) IO
-    , Memory.Plus (Memory.Management a)
+    , Memory.PtrType (Memory.Management a)
     ) => Cons__ a '[f] where
     cons__ = \alloc f a -> cons__ @a @('[]) alloc $ \ptr ->
         let (!m, !ptr') = f ptr

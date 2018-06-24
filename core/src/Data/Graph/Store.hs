@@ -69,7 +69,11 @@ type Serializer comp m =
     ( MonadIO m
     , Partition.Partition comp m
     , Size.ClusterSizeDiscovery (Graph.ComponentsM m) m
+    , Size.ClusterSizeCount     (Graph.ComponentsM m) m
     , Buffer.Alloc m
+
+
+    , Show (Partition.ClustersM m)
     -- , Alloc.Allocator comps m
     -- , Serialize.ClusterSerializer comps m
     )
@@ -79,7 +83,12 @@ serialize :: ∀ comp m layout. Serializer comp m
 serialize comp = do
     clusters  <- Partition.partition comp
     size      <- Size.clusterSize clusters
-    buffer    <- Buffer.alloc size
+    ccount    <- Size.componentCount clusters
+    buffer    <- Buffer.alloc ccount size
+    print "SERIALIZE"
+    print $ "clusters = " <> show clusters
+    print $ "size = " <> show size
+    print $ "ccount = " <> show ccount
     -- memRegion <- Alloc.alloc @comps clusters
     pure ()
     -- serInfo   <- Serialize.serializeClusters @comps clusters memRegion

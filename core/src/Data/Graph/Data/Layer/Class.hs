@@ -142,6 +142,19 @@ byteSize = Storable1.sizeOf' @(Cons layer)
 {-# INLINE byteSize #-}
 
 
+class KnownLayersSize (layers :: [Type]) where
+    layersSize :: Int
+
+instance KnownLayersSize '[] where
+    layersSize = 0
+    {-# INLINE layersSize #-}
+
+instance (StorableData layer, KnownLayersSize layers)
+      => KnownLayersSize (layer ': layers) where
+    layersSize = byteSize @layer + layersSize @layers
+    {-# INLINE layersSize #-}
+
+
 
 ----------------------------------
 -- === Layer Memory Manager === --

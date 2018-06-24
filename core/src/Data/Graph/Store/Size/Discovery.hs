@@ -8,6 +8,7 @@ import qualified Data.Graph.Data.Component.Class  as Component
 import qualified Data.Graph.Data.Component.List   as ComponentList
 import qualified Data.Graph.Data.Component.Set    as ComponentSet
 import qualified Data.Graph.Data.Component.Vector as ComponentVector
+import qualified Data.Graph.Data.Graph.Class      as Graph
 import qualified Data.Graph.Data.Layer.Class      as Layer
 import qualified Data.Graph.Fold.Class            as Fold
 import qualified Data.Graph.Fold.Filter           as Fold
@@ -26,8 +27,8 @@ import Data.Graph.Data.Component.List        (ComponentList, ComponentLists)
 import Data.Graph.Data.Component.Set         (ComponentSet)
 import Data.Graph.Data.Component.Vector      (ComponentVector)
 import Data.Graph.Store.Size.Class           (DynamicSize, Size (Size))
-import Data.PtrSet.Mutable                   (IsPtr, UnmanagedPtrSet)
 import Data.Mutable.Storable.SmallAutoVector (SmallVector)
+import Data.PtrSet.Mutable                   (IsPtr, UnmanagedPtrSet)
 import Data.Vector.Storable.Foreign          (Vector)
 import Foreign.DynamicStorable               (DynamicStorable)
 import Foreign.Ptr                           (Ptr, plusPtr)
@@ -151,8 +152,9 @@ instance Applicative m
     {-# INLINE foldClusterSize #-}
 
 instance
-    ( TypeMap.SplitHead (ComponentList comp) (ComponentLists comps)
-    , Storable.KnownConstantSize comp
+    ( layers ~ Graph.ComponentLayersM m comp
+    , TypeMap.SplitHead (ComponentList comp) (ComponentLists comps)
+    , Layer.KnownLayersSize layers
     , DynamicDiscovery m (Component.Some comp)
     , ClusterSizeDiscovery comps m
     , Monad m
@@ -161,11 +163,44 @@ instance
         let (  !compList
              , !cluster') = Partition.splitHead cluster
             sizeDiscovery = \acc -> fmap (acc <>) . discoverDynamic
-            compSize      = Storable.constantSize @comp
+            compSize      = Layer.layersSize @layers
             staticSize    = compSize * ComponentList.length compList
         dynamicSize <- ComponentList.foldlM sizeDiscovery mempty compList
         foldClusterSize cluster' $! acc <> Size staticSize dynamicSize
     {-# INLINE foldClusterSize #-}
+
+
+
+------------------------------------
+-- === Cluster size discovery === --
+------------------------------------
+
+-- === API === --
+
+componentCount :: ClusterSizeCount comps m
+            => Partition.Clusters comps -> m [Int]
+componentCount = \clusters -> foldComponentCount clusters mempty
+{-# INLINE componentCount #-}
+
+class ClusterSizeCount comps m where
+    foldComponentCount :: Partition.Clusters comps -> [Int] -> m [Int]
+
+instance Applicative m
+     => ClusterSizeCount '[] m where
+    foldComponentCount = const pure
+    {-# INLINE foldComponentCount #-}
+
+instance
+    ( TypeMap.SplitHead (ComponentList comp) (ComponentLists comps)
+    , ClusterSizeCount comps m
+    , Monad m
+    ) => ClusterSizeCount (comp ': comps) m where
+    foldComponentCount cluster acc = do
+        let (  !compList
+             , !cluster') = Partition.splitHead cluster
+            count = ComponentList.length compList
+        foldComponentCount cluster' $! acc <> [count]
+    {-# INLINE foldComponentCount #-}
 
 
 

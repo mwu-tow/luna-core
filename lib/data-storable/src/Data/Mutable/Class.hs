@@ -33,8 +33,17 @@ class InsertAt     m a where insertAt    :: a -> Int -> Item a -> m ()
 class RemoveAt     m a where removeAt    :: a -> Int -> m ()
 
 
-
 -- === Conversions === --
 
 class ToList       m a where toList      :: a -> m [Item a]
 class FromList     m a where fromList    :: [Item a] -> m a
+
+
+
+
+
+-- === Utils === --
+
+unsafeWriteFromList :: (Write m a, Applicative m) => a -> [Item a] -> m ()
+unsafeWriteFromList = \a -> zipWithM_ (unsafeWrite a) [0..]
+{-# INLINE unsafeWriteFromList #-}

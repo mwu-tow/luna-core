@@ -56,40 +56,83 @@ coercePtr = unsafeCoerce
 
 -- === Arithmetics === --
 
-class Plus  t where plus  :: ∀ src tgt. Ptr t src -> Int -> Ptr t tgt
-class Minus t where minus :: ∀ src tgt. Ptr t tgt -> Ptr t src -> Int
+class PtrType t where
+    plus          :: ∀ src tgt. Ptr t src -> Int -> Ptr t tgt
+    minus         :: ∀ src tgt. Ptr t tgt -> Ptr t src -> Int
+    nullPtr       :: ∀ a. Ptr t a
+    withRawPtr    :: ∀ a b m. MonadIO m => Ptr t a -> (Raw.Ptr a -> m b) -> m b
+    mallocBytesIO :: ∀ a. Int -> IO (Ptr t a)
 
-instance Plus 'Memory.Unmanaged where
-    plus = \ptr -> wrap . Raw.plusPtr (unwrap ptr)
-    {-# INLINE plus #-}
 
-instance Minus 'Memory.Unmanaged where
-    minus = \tgt src -> Raw.minusPtr (unwrap tgt) (unwrap src)
-    {-# INLINE minus #-}
+instance PtrType 'Memory.Unmanaged where
+    plus          = \ptr -> wrap . Raw.plusPtr (unwrap ptr)
+    minus         = \tgt src -> Raw.minusPtr (unwrap tgt) (unwrap src)
+    nullPtr       = wrap Raw.nullPtr
+    withRawPtr    = \ptr f -> f (unwrap ptr)
+    mallocBytesIO = fmap wrap . Mem.mallocBytes
+    {-# INLINE plus          #-}
+    {-# INLINE minus         #-}
+    {-# INLINE nullPtr       #-}
+    {-# INLINE withRawPtr    #-}
+    {-# INLINE mallocBytesIO #-}
 
-instance Plus 'Memory.Managed where
+instance PtrType 'Memory.Managed where
     plus = \ptr -> wrap . Raw.plusForeignPtr (unwrap ptr)
     {-# INLINE plus #-}
 
-instance Minus 'Memory.Managed where
     minus = \ (unwrap -> Raw.ForeignPtr !tgtAddr !_)
               (unwrap -> Raw.ForeignPtr !srcAddr !_)
-           -> I# (minusAddr# tgtAddr srcAddr)
+            -> I# (minusAddr# tgtAddr srcAddr)
     {-# INLINE minus #-}
+
+    nullPtr = wrap (coerce __foreignNullPtr)
+    {-# INLINE   nullPtr #-}
+
+    withRawPtr = \ptr f -> do
+        let fptr = unwrap ptr
+        out <- f $! Raw.unsafeForeignPtrToPtr fptr
+        liftIO $ Raw.touchForeignPtr fptr
+        pure out
+    {-# INLINE withRawPtr #-}
+
+    mallocBytesIO = fmap wrap . Raw.mallocForeignPtrBytes
+    {-# INLINE mallocBytesIO #-}
+
+
+-- class Plus  t where plus  :: ∀ src tgt. Ptr t src -> Int -> Ptr t tgt
+-- class Minus t where minus :: ∀ src tgt. Ptr t tgt -> Ptr t src -> Int
+
+-- instance Plus 'Memory.Unmanaged where
+--     plus = \ptr -> wrap . Raw.plusPtr (unwrap ptr)
+--     {-# INLINE plus #-}
+
+-- instance Minus 'Memory.Unmanaged where
+--     minus = \tgt src -> Raw.minusPtr (unwrap tgt) (unwrap src)
+--     {-# INLINE minus #-}
+
+-- instance Plus 'Memory.Managed where
+--     plus = \ptr -> wrap . Raw.plusForeignPtr (unwrap ptr)
+--     {-# INLINE plus #-}
+
+-- instance Minus 'Memory.Managed where
+--     minus = \ (unwrap -> Raw.ForeignPtr !tgtAddr !_)
+--               (unwrap -> Raw.ForeignPtr !srcAddr !_)
+--            -> I# (minusAddr# tgtAddr srcAddr)
+--     {-# INLINE minus #-}
 
 
 -- === NullPtr === --
 
-class NullPtr t where
-    nullPtr :: ∀ a. Ptr t a
+-- class NullPtr t where
+--     nullPtr :: ∀ a. Ptr t a
 
-instance NullPtr 'Memory.Unmanaged where
-    nullPtr = wrap Raw.nullPtr
-    {-# INLINE nullPtr #-}
+-- instance NullPtr 'Memory.Unmanaged where
+--     nullPtr = wrap Raw.nullPtr
+--     {-# INLINE nullPtr #-}
 
-instance NullPtr 'Memory.Managed where
-    nullPtr = wrap (coerce __foreignNullPtr)
-    {-# INLINE nullPtr #-}
+-- instance NullPtr 'Memory.Managed where
+--     nullPtr = wrap (coerce __foreignNullPtr)
+--     {-# INLINE nullPtr #-}
 
 __foreignNullPtr :: Raw.ForeignPtr ()
 __foreignNullPtr = unsafePerformIO $ Raw.newForeignPtr_ Raw.nullPtr
@@ -98,37 +141,36 @@ __foreignNullPtr = unsafePerformIO $ Raw.newForeignPtr_ Raw.nullPtr
 
 -- === WithRawPtr === --
 
-class WithRawPtr t (m :: Type -> Type) where
-    withRawPtr :: ∀ a b. Ptr t a -> (Raw.Ptr a -> m b) -> m b
+-- class WithRawPtr t where
+--     withRawPtr :: ∀ a b m. MonadIO m => Ptr t a -> (Raw.Ptr a -> m b) -> m b
 
-instance WithRawPtr 'Memory.Unmanaged m where
-    withRawPtr = \ptr f -> f (unwrap ptr)
-    {-# INLINE withRawPtr #-}
+-- instance WithRawPtr 'Memory.Unmanaged where
+--     withRawPtr = \ptr f -> f (unwrap ptr)
+--     {-# INLINE withRawPtr #-}
 
-instance MonadIO m
-      => WithRawPtr 'Memory.Managed m where
-    withRawPtr = \ptr f -> do
-        let fptr = unwrap ptr
-        out <- f $! Raw.unsafeForeignPtrToPtr fptr
-        liftIO $ Raw.touchForeignPtr fptr
-        pure out
-    {-# INLINE withRawPtr #-}
+-- instance WithRawPtr 'Memory.Managed where
+--     withRawPtr = \ptr f -> do
+--         let fptr = unwrap ptr
+--         out <- f $! Raw.unsafeForeignPtrToPtr fptr
+--         liftIO $ Raw.touchForeignPtr fptr
+--         pure out
+--     {-# INLINE withRawPtr #-}
 
 
 -- === Malloc === --
 
-class Malloc t where
-    mallocBytesIO :: ∀ a. Int -> IO (Ptr t a)
+-- class Malloc t where
+--     mallocBytesIO :: ∀ a. Int -> IO (Ptr t a)
 
-instance Malloc 'Memory.Unmanaged where
-    mallocBytesIO = fmap wrap . Mem.mallocBytes
-    {-# INLINE mallocBytesIO #-}
+-- instance Malloc 'Memory.Unmanaged where
+--     mallocBytesIO = fmap wrap . Mem.mallocBytes
+--     {-# INLINE mallocBytesIO #-}
 
-instance Malloc 'Memory.Managed where
-    mallocBytesIO = fmap wrap . Raw.mallocForeignPtrBytes
-    {-# INLINE mallocBytesIO #-}
+-- instance Malloc 'Memory.Managed where
+--     mallocBytesIO = fmap wrap . Raw.mallocForeignPtrBytes
+--     {-# INLINE mallocBytesIO #-}
 
-mallocBytes :: ∀ t m a. Malloc t => MonadIO m => Int -> m (Ptr t a)
+mallocBytes :: ∀ t m a. PtrType t => MonadIO m => Int -> m (Ptr t a)
 mallocBytes = liftIO . mallocBytesIO
 {-# INLINE mallocBytes #-}
 

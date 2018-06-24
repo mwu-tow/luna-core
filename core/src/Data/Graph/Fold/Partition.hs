@@ -40,6 +40,12 @@ splitHead = fmap wrap . TypeMap.splitHead . unwrap
 {-# INLINE splitHead #-}
 
 
+-- === Instances === --
+
+deriving instance Mempty (Clusters__ comps) => Mempty (Clusters comps)
+deriving instance Show   (Clusters__ comps) => Show   (Clusters comps)
+
+
 
 -------------------------------
 -- === Cluster Discovery === --
