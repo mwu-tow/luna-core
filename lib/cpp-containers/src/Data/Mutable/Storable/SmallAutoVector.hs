@@ -11,6 +11,7 @@ import qualified Data.AutoVector.Mutable.Storable as Vector
 import qualified Data.Construction                as Data
 import qualified Data.Convert2.Class              as Convert
 import qualified Data.List                        as List
+import qualified Data.Mutable.Plain               as Data
 import qualified Data.Property                    as Property
 import qualified Data.Storable                    as Struct
 import qualified Foreign.Marshal.Alloc            as Mem
@@ -67,21 +68,23 @@ instance Applicative m
 
 -- === Definition === --
 
-type    SmallVector__ (n :: Nat) a = UnmanagedStruct (Layout n a)
-newtype SmallVector   (n :: Nat) a = SmallVector (SmallVector__ n a)
+type    SmallVector = SmallVectorA Memory.StdAllocator
+newtype SmallVectorA (alloc :: Memory.Allocator) (n :: Nat) (a :: Type)
+      = SmallVector (SmallVector__ n a)
     deriving (Eq, Ord, NFData)
 
+type SmallVector__ (n :: Nat) a = UnmanagedStruct (Layout n a)
 type Layout n a =
    '[ "length"      -:: Int
     , "capacity"    -:: Int
     , "externalMem" -:: (Ptr a)
     , "localMem"    -:: MemChunk n a
     ]
-makeLenses ''SmallVector
+makeLenses ''SmallVectorA
 
-type instance Item (SmallVector n a) = a
-instance Struct.IsStruct (SmallVector n a)
-type instance Memory.Management (SmallVector n a) = 'Memory.Unmanaged
+type instance Item (SmallVectorA alloc n a) = a
+instance Struct.IsStruct (SmallVectorA alloc n a)
+type instance Memory.Management (SmallVectorA alloc n a) = 'Memory.Unmanaged
 
 
 -- === Fields === --
@@ -98,14 +101,14 @@ _localMem    = Struct.field ; {-# INLINE _localMem    #-}
 
 -- === Utils === --
 
-elemsPtr :: MonadIO m => SmallVector n a -> m (Ptr a)
+elemsPtr :: MonadIO m => SmallVectorA alloc n a -> m (Ptr a)
 elemsPtr = \a -> do
     isExt <- usesDynamicMemory a
     if isExt then            Struct.readField _externalMem a
              else coerce <$> Struct.readField _localMem    a
 {-# INLINE elemsPtr #-}
 
-usesDynamicMemory :: MonadIO m => SmallVector n a -> m Bool
+usesDynamicMemory :: MonadIO m => SmallVectorA alloc n a -> m Bool
 usesDynamicMemory = fmap (/= nullPtr) . Struct.readField _externalMem
 {-# INLINE usesDynamicMemory #-}
 
@@ -113,19 +116,19 @@ usesDynamicMemory = fmap (/= nullPtr) . Struct.readField _externalMem
 -- === API Instances === --
 
 instance Storable.KnownConstantSize (SmallVector__ n a)
-      => Storable.KnownConstantSize (SmallVector n a) where
+      => Storable.KnownConstantSize (SmallVectorA alloc n a) where
     constantSize = Storable.constantSize @(SmallVector__ n a)
     {-# INLINE constantSize #-}
 
 instance (MonadIO m, Storable.KnownConstantSize a)
-      => Storable.KnownSize Storable.Dynamic m (SmallVector n a) where
+      => Storable.KnownSize Storable.Dynamic m (SmallVectorA alloc n a) where
     size = \a -> usesDynamicMemory a >>= \case
         True  -> (Storable.constantSize @a *) <$> size a
         False -> pure 0
     {-# INLINE size #-}
 
 instance (MonadIO m, Type.KnownInt n)
-      => PlacementNew m (SmallVector n a) where
+      => PlacementNew m (SmallVectorA alloc n a) where
     placementNew = \ptr -> liftIO $ do
         let a = Struct.unsafeCastFromPtr (Convert.convert (coerce ptr :: Ptr ()))
         Struct.writeField _length a 0
@@ -136,27 +139,27 @@ instance (MonadIO m, Type.KnownInt n)
 
 instance
     ( MonadIO m
-    , Storable.KnownConstantSize (SmallVector n a)
+    , Storable.KnownConstantSize (SmallVectorA alloc n a)
     , Type.KnownInt n
-    ) => New m (SmallVector n a) where
+    ) => New m (SmallVectorA alloc n a) where
     new = do
         ptr <- liftIO . Mem.mallocBytes
-             $ Storable.constantSize @(SmallVector n a)
+             $ Storable.constantSize @(SmallVectorA alloc n a)
         placementNew ptr
     {-# INLINE new #-}
 
 instance MonadIO m
-      => Size m (SmallVector n a) where
+      => Size m (SmallVectorA alloc n a) where
     size = Struct.readField _length
     {-# INLINE size #-}
 
 instance MonadIO m
-      => Capacity m (SmallVector n a) where
+      => Capacity m (SmallVectorA alloc n a) where
     capacity = Struct.readField _capacity
     {-# INLINE capacity #-}
 
 instance MonadIO m
-      => Free m (SmallVector n a) where
+      => Free m (SmallVectorA alloc n a) where
     free = \a -> liftIO $ do
         whenM (usesDynamicMemory a)
             $ Mem.free =<< Struct.readField _externalMem a
@@ -164,45 +167,45 @@ instance MonadIO m
     {-# INLINE free #-}
 
 instance (MonadIO m, Storable.StaticPeek View m a)
-      => Read m (SmallVector n a) where
+      => Read m (SmallVectorA alloc n a) where
     unsafeRead = \a ix -> do
         ptr <- elemsPtr a
         Storable.peekElemOff @View ptr ix
     {-# INLINE unsafeRead #-}
 
 instance (MonadIO m, Storable.StaticPoke View m a)
-      => Write m (SmallVector n a) where
+      => Write m (SmallVectorA alloc n a) where
     unsafeWrite = \a ix val -> do
         ptr <- elemsPtr a
         Storable.pokeElemOff @View ptr ix val
     {-# INLINE unsafeWrite #-}
 
 instance (MonadIO m, Storable.StaticPeek View m a)
-      => ToList m (SmallVector n a) where
+      => ToList m (SmallVectorA alloc n a) where
     toList = \a -> do
         len <- size a
         mapM (unsafeRead a) [0 .. len - 1]
     {-# INLINE toList #-}
 
-instance (Monad m, New m (SmallVector n a), PushBack m (SmallVector n a))
-      => FromList m (SmallVector n a) where
+instance (Monad m, New m (SmallVectorA alloc n a), PushBack m (SmallVectorA alloc n a))
+      => FromList m (SmallVectorA alloc n a) where
     fromList = \lst -> do
         a <- new
         mapM_ (pushBack a) lst
         pure a
     {-# INLINE fromList #-}
 
-instance (MonadIO m, Storable.KnownConstantSize a)
-      => Grow m (SmallVector n a) where
+instance (MonadIO m, Storable.KnownConstantSize a, Memory.Allocation alloc a m)
+      => Grow m (SmallVectorA alloc n a) where
     grow = \a -> do
         oldCapacity <- capacity a
         elemCount   <- size     a
         ptr         <- elemsPtr a
         let newSize       = if oldCapacity == 0 then 16 else oldCapacity * 2
             elemByteSize  = Storable.constantSize @a
-            bytesToMalloc = elemByteSize * newSize
             bytesToCopy   = elemByteSize * elemCount
-        newElemsPtr <- liftIO $ Mem.mallocBytes bytesToMalloc
+        (newElemsPtr_ :: Memory.UnmanagedPtr a) <- Memory.allocate @alloc newSize
+        let newElemsPtr = coerce (unwrap newElemsPtr_)
         liftIO $ Mem.copyBytes newElemsPtr ptr bytesToCopy
         whenM (usesDynamicMemory a) $
             liftIO (Mem.free ptr)
@@ -210,8 +213,8 @@ instance (MonadIO m, Storable.KnownConstantSize a)
         Struct.writeField _externalMem a $! newElemsPtr
     {-# INLINE grow #-}
 
-instance (MonadIO m, Storable.StaticPoke View m a)
-      => PushBack m (SmallVector n a) where
+instance (MonadIO m, Write m (SmallVectorA alloc n a), Grow m (SmallVectorA alloc n a))
+      => PushBack m (SmallVectorA alloc n a) where
     pushBack = \a v -> do
         siz <- size     a
         cap <- capacity a
@@ -222,10 +225,10 @@ instance (MonadIO m, Storable.StaticPoke View m a)
 
 instance
     ( MonadIO m
-    , Grow  m (SmallVector n a)
-    , Write m (SmallVector n a)
+    , Grow  m (SmallVectorA alloc n a)
+    , Write m (SmallVectorA alloc n a)
     , Storable.KnownConstantSize a
-    ) => InsertAt m (SmallVector n a) where
+    ) => InsertAt m (SmallVectorA alloc n a) where
     insertAt = \a ix v -> do
         siz <- size     a
         cap <- capacity a
@@ -243,7 +246,7 @@ instance
 instance
     ( MonadIO m
     , Storable.KnownConstantSize a
-    ) => RemoveAt m (SmallVector n a) where
+    ) => RemoveAt m (SmallVectorA alloc n a) where
     removeAt = \a ix -> do
         siz  <- size a
         ptr0 <- elemsPtr a
@@ -260,42 +263,59 @@ instance
 -- === Memory management instances === --
 
 instance Applicative m
-      => Storable.Peek View m (SmallVector n a) where
+      => Storable.Peek View m (SmallVectorA alloc n a) where
     peek = pure . coerce
     {-# INLINE peek #-}
 
-instance (MonadIO m, Storable.KnownConstantSize (SmallVector n a), Show (SmallVector n a))
-      => Storable.Poke View m (SmallVector n a) where
+instance (MonadIO m, Storable.KnownConstantSize (SmallVectorA alloc n a), Show (SmallVectorA alloc n a))
+      => Storable.Poke View m (SmallVectorA alloc n a) where
     poke = \ptr a ->
-        let size = Storable.constantSize @(SmallVector n a)
+        let size = Storable.constantSize @(SmallVectorA alloc n a)
         in  liftIO $ Mem.copyBytes ptr (coerce a) size
 
     {-# INLINE poke #-}
 
-instance MonadIO m => Data.ShallowDestructor1 m (SmallVector n) where
+instance MonadIO m => Data.ShallowDestructor1 m (SmallVectorA alloc n) where
     destructShallow1 = free
     {-# INLINE destructShallow1 #-}
+
+instance
+    ( MonadIO m
+    , Storable.KnownConstantSize a
+    , Memory.Allocation alloc a m
+    ) => Data.CopyInitializer m (SmallVectorA alloc n a) where
+    copyInitialize = \a -> whenM_ (usesDynamicMemory a) $ do
+        cap       <- capacity a
+        elemCount <- size     a
+        ptr       <- elemsPtr a
+        let elemByteSize  = Storable.constantSize @a
+            bytesToCopy   = elemByteSize * elemCount
+        (newElemsPtr :: Memory.UnmanagedPtr a) <- Memory.allocate @alloc cap
+        let newElemsPtr' = coerce (unwrap newElemsPtr)
+        liftIO $ Mem.copyBytes newElemsPtr' ptr bytesToCopy
+        Struct.writeField _externalMem a $! newElemsPtr'
+    {-# INLINE copyInitialize #-}
 
 
 -- === Debug instances === --
 
-instance (Show a, ToList IO (SmallVector n a))
-      => Show (SmallVector n a) where
+instance (Show a, ToList IO (SmallVectorA alloc n a))
+      => Show (SmallVectorA alloc n a) where
     show = show . unsafePerformIO . toList
 
 
 
 -- === Deprecated instances === --
 
-type instance Property.Get Dynamics (SmallVector n a) = Dynamic
+type instance Property.Get Dynamics (SmallVectorA alloc n a) = Dynamic
 
 instance
     ( Storable.Peek View IO a
-    , Storable.KnownConstantSize (SmallVector n a)
-    , Storable View IO (SmallVector n a)
+    , Storable.KnownConstantSize (SmallVectorA alloc n a)
+    , Storable View IO (SmallVectorA alloc n a)
     , Type.KnownInt n
-    ) => StdStorable.Storable (SmallVector n a) where
-    sizeOf    = \ ~_ -> Storable.constantSize @(SmallVector n a)
+    ) => StdStorable.Storable (SmallVectorA alloc n a) where
+    sizeOf    = \ ~_ -> Storable.constantSize @(SmallVectorA alloc n a)
     alignment = \ ~_ -> StdStorable.alignment (undefined :: Int)
     peek      = Storable.peek @View
     poke      = Storable.poke @View
@@ -305,8 +325,9 @@ instance
 -- WARNING: this instance is strange. It does not release self-memory,
 --          because it is used for placement-new objects
 instance MonadIO m
-      => Data.Destructor1 m (SmallVector n) where
+      => Data.Destructor1 m (SmallVectorA alloc n) where
     destruct1 = \a -> liftIO $ do
         whenM (usesDynamicMemory a)
             $ Mem.free =<< Struct.readField _externalMem a
     {-# INLINE destruct1 #-}
+

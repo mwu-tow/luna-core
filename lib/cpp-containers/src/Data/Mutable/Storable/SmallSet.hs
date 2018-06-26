@@ -8,13 +8,15 @@ import Prologue hiding (FromList, Read, ToList, fromList, length, toList,
                  unsafeRead)
 
 import qualified Data.Construction                     as Data
+import qualified Data.Mutable.Plain                    as Data
 import qualified Data.Mutable.Storable.SmallAutoVector as SmallVector
 import qualified Data.Storable                         as Struct
 import qualified Foreign.Storable                      as StdStorable
 import qualified Foreign.Storable.Class                as Storable
+import qualified Memory                                as Memory
 import qualified Type.Known                            as Type
 
-import Data.Mutable.Storable.SmallAutoVector (MemChunk, SmallVector)
+import Data.Mutable.Storable.SmallAutoVector (MemChunk, SmallVectorA)
 import Foreign.Storable.Class                (Copy, Storable, View)
 import System.IO.Unsafe                      (unsafeDupablePerformIO)
 
@@ -26,20 +28,22 @@ import System.IO.Unsafe                      (unsafeDupablePerformIO)
 
 -- === Definition === --
 
-type SmallSet__ = SmallVector
-newtype SmallSet (n :: Nat) a = SmallSet (SmallSet__ n a)
+type    SmallSet = SmallSetA Memory.StdAllocator
+newtype SmallSetA (alloc :: Memory.Allocator) (n :: Nat) a
+      = SmallSet (SmallSet__ alloc n a)
     deriving (Eq, Ord, NFData, Free m)
-makeLenses ''SmallSet
+type SmallSet__ = SmallVectorA
+makeLenses ''SmallSetA
 
-type instance Item (SmallSet n a) = a
+type instance Item (SmallSetA alloc n a) = a
 
 
 -- === Utils === --
 
-type LookupAndApp m n a = (MonadIO m, Ord a, Read m (SmallSet n a))
+type LookupAndApp m alloc n a = (MonadIO m, Ord a, Read m (SmallSetA alloc n a))
 
-lookupAndApp :: LookupAndApp m n a
-    => (Int -> m ()) -> (Int -> m ()) -> SmallSet n a -> a -> m ()
+lookupAndApp :: LookupAndApp m alloc n a
+    => (Int -> m ()) -> (Int -> m ()) -> SmallSetA alloc n a -> a -> m ()
 lookupAndApp = \ffound fmissing s a -> do
     siz <- size s
     if siz == 0 then fmissing 0
@@ -49,9 +53,9 @@ lookupAndApp = \ffound fmissing s a -> do
          in  lookupAndApp__ ffound fmissing s a min ix max
 {-# INLINE lookupAndApp #-}
 
-lookupAndApp__ :: LookupAndApp m n a
+lookupAndApp__ :: LookupAndApp m alloc n a
     => (Int -> m ()) -> (Int -> m ())
-    -> SmallSet n a -> a -> Int -> Int -> Int -> m ()
+    -> SmallSetA alloc n a -> a -> Int -> Int -> Int -> m ()
 lookupAndApp__ ffound fmissing s a = go where
     go = \min ix max -> do
         ixVal <- unsafeRead s ix
@@ -74,60 +78,63 @@ lookupAndApp__ ffound fmissing s a = go where
 
 -- === API Instances === --
 
-instance Storable.KnownConstantSize (SmallSet__ n a)
-      => Storable.KnownConstantSize (SmallSet n a) where
-    constantSize = Storable.constantSize @(SmallSet__ n a)
+deriving instance Data.CopyInitializer m (SmallSet__ alloc n a)
+               => Data.CopyInitializer m (SmallSetA alloc n a)
+
+instance Storable.KnownConstantSize (SmallSet__ alloc n a)
+      => Storable.KnownConstantSize (SmallSetA alloc n a) where
+    constantSize = Storable.constantSize @(SmallSet__ alloc n a)
     {-# INLINABLE constantSize #-}
 
-instance Storable.KnownSize t m (SmallSet__ n a)
-      => Storable.KnownSize t m (SmallSet n a) where
+instance Storable.KnownSize t m (SmallSet__ alloc n a)
+      => Storable.KnownSize t m (SmallSetA alloc n a) where
     size = Storable.size @t . unwrap
     {-# INLINE size #-}
 
-instance (PlacementNew m (SmallSet__ n a), Functor m)
-      => PlacementNew m (SmallSet n a) where
+instance (PlacementNew m (SmallSet__ alloc n a), Functor m)
+      => PlacementNew m (SmallSetA alloc n a) where
     placementNew = fmap wrap . placementNew . coerce
     {-# INLINE placementNew #-}
 
-instance (New m (SmallSet__ n a), Functor m)
-      => New m (SmallSet n a) where
+instance (New m (SmallSet__ alloc n a), Functor m)
+      => New m (SmallSetA alloc n a) where
     new = wrap <$> new
     {-# INLINE new #-}
 
-instance Size m (SmallSet__ n a)
-      => Size m (SmallSet n a) where
+instance Size m (SmallSet__ alloc n a)
+      => Size m (SmallSetA alloc n a) where
     size = size . unwrap
     {-# INLINE size #-}
 
-instance Capacity m (SmallSet__ n a)
-      => Capacity m (SmallSet n a) where
+instance Capacity m (SmallSet__ alloc n a)
+      => Capacity m (SmallSetA alloc n a) where
     capacity = capacity . unwrap
     {-# INLINE capacity #-}
 
-instance Read m (SmallSet__ n a)
-      => Read m (SmallSet n a) where
+instance Read m (SmallSet__ alloc n a)
+      => Read m (SmallSetA alloc n a) where
     unsafeRead = unsafeRead . unwrap
     {-# INLINE unsafeRead #-}
 
-instance (InsertAt m (SmallSet__ n a), LookupAndApp m n a)
-      => Insert m (SmallSet n a) where
+instance (InsertAt m (SmallSet__ alloc n a), LookupAndApp m alloc n a)
+      => Insert m (SmallSetA alloc n a) where
     insert = \a v -> lookupAndApp (\_ -> pure ())
                      (\ix -> insertAt (unwrap a) ix v) a v
     {-# INLINE insert #-}
 
-instance (RemoveAt m (SmallSet__ n a), LookupAndApp m n a)
-      => Remove m (SmallSet n a) where
+instance (RemoveAt m (SmallSet__ alloc n a), LookupAndApp m alloc n a)
+      => Remove m (SmallSetA alloc n a) where
     remove = \a v -> lookupAndApp (removeAt (unwrap a))
                      (\_ -> pure ()) a v
     {-# INLINE remove #-}
 
-instance (FromList m (SmallSet__ n a), Functor m)
-      => FromList m (SmallSet n a) where
+instance (FromList m (SmallSet__ alloc n a), Functor m)
+      => FromList m (SmallSetA alloc n a) where
     fromList = fmap wrap . fromList
     {-# INLINE fromList #-}
 
-instance ToList m (SmallSet__ n a)
-      => ToList m (SmallSet n a) where
+instance ToList m (SmallSet__ alloc n a)
+      => ToList m (SmallSetA alloc n a) where
     toList = toList . unwrap
     {-# INLINE toList #-}
 
@@ -135,19 +142,19 @@ instance ToList m (SmallSet__ n a)
 
 -- === Debug Instances === --
 
-instance Show (SmallSet__ n a)
-      => Show (SmallSet n a) where
+instance Show (SmallSet__ alloc n a)
+      => Show (SmallSetA alloc n a) where
     show = show . unwrap
 
 
 -- === Deprecated Instances === --
 
-deriving instance StdStorable.Storable (SmallSet__ n a)
-    => StdStorable.Storable (SmallSet n a)
+deriving instance StdStorable.Storable (SmallSet__ alloc n a)
+    => StdStorable.Storable (SmallSetA alloc n a)
 
 -- WARNING: this instance is strange. It does not release self-memory,
 --          because it is used for placement-new objects
-instance (Data.Destructor1 m (SmallSet__ n), Monad m)
-      => Data.Destructor1 m (SmallSet n) where
+instance (Data.Destructor1 m (SmallSet__ alloc n), Monad m)
+      => Data.Destructor1 m (SmallSetA alloc n) where
     destruct1 = Data.destruct1 . unwrap
     {-# INLINE destruct1 #-}

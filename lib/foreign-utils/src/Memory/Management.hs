@@ -1,6 +1,6 @@
 {-# LANGUAGE TypeInType #-}
 
-module Memory.Data.Management where
+module Memory.Management where
 
 
 
@@ -18,3 +18,4 @@ data ManagementType
 
 type AssertUnmanaged a = (Management a ~ 'Unmanaged)
 type AssertManaged   a = (Management a ~ 'Managed)
+

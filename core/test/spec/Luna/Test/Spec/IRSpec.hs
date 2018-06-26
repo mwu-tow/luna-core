@@ -33,6 +33,8 @@ import qualified Luna.Pass.Attr                        as Attr
 import qualified Luna.Pass.Basic                       as Pass
 import qualified Luna.Pass.Scheduler                   as Scheduler
 
+import qualified Data.Graph.Store.Buffer as Buffer
+
 import Data.Graph.Data.Graph.Class           (Graph)
 import Data.Mutable.Storable.SmallAutoVector (SmallVector)
 import Luna.Pass                             (Pass)
@@ -310,7 +312,7 @@ test = describe "test" $ it "test" $ runPass' $ do
 
     print "--------------------------"
 
-    Store.serialize u
+    Store.serialize v
     True `shouldBe` True
 
 spec :: Spec
@@ -325,3 +327,9 @@ spec = do
     irDestructSpec
     irDiscoverySpec
     -- partitionSpec
+
+
+
+
+-- TODO: REMOVE REMOVE REMOVE
+instance Applicative m => Buffer.CopyInitializerP1 m IR.UniTerm

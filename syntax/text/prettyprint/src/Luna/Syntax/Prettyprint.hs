@@ -314,7 +314,7 @@ prettyprintSimple ir = Layer.read @IR.Model ir >>= \case
                 -> unnamed . Atom .: go <$> subgenBody im
                                         <*> (mapM subgenBody =<< ComponentVector.toList ds)
                 where go imps defs = let glue = ""
-                        in  imps <> glue <> foldl (</>) mempty defs
+                        in  imps <> glue <> foldl (</>) mempty defsz
 
     IR.UniTermVar (IR.Var name) -> Scope.lookupMultipartName name <&> \case
         Just (n:|ns) -> labeled Nothing $ Mixfix (convert n) ns

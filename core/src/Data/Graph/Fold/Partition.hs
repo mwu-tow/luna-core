@@ -34,7 +34,10 @@ makeLenses ''Clusters
 
 -- === API === --
 
-splitHead :: TypeMap.SplitHead (ComponentList comp) (ComponentLists comps)
+type SplitHead comp comps
+   = TypeMap.SplitHead (ComponentList comp) (ComponentLists comps)
+
+splitHead :: SplitHead comp comps
     => Clusters (comp ': comps) -> (ComponentList comp, Clusters comps)
 splitHead = fmap wrap . TypeMap.splitHead . unwrap
 {-# INLINE splitHead #-}

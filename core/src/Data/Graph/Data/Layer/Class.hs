@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP                  #-}
+{-# LANGUAGE TypeInType           #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 module Data.Graph.Data.Layer.Class where
@@ -135,24 +136,24 @@ class IsCons1 layer t where
     cons1 :: ∀ a. t a -> Data layer a
 
 
--- === General Information === --
+-- === Byte Size === --
 
-byteSize :: ∀ layer. StorableData layer => Int
-byteSize = Storable1.sizeOf' @(Cons layer)
-{-# INLINE byteSize #-}
+class KnownByteSize t where
+    byteSize :: Int
 
+instance StorableData layer
+      => KnownByteSize (layer :: Type) where
+    byteSize = Storable1.sizeOf' @(Cons layer)
+    {-# INLINE byteSize #-}
 
-class KnownLayersSize (layers :: [Type]) where
-    layersSize :: Int
+instance KnownByteSize '[] where
+    byteSize = 0
+    {-# INLINE byteSize #-}
 
-instance KnownLayersSize '[] where
-    layersSize = 0
-    {-# INLINE layersSize #-}
-
-instance (StorableData layer, KnownLayersSize layers)
-      => KnownLayersSize (layer ': layers) where
-    layersSize = byteSize @layer + layersSize @layers
-    {-# INLINE layersSize #-}
+instance (KnownByteSize layer, KnownByteSize layers)
+        => KnownByteSize (layer ': layers) where
+    byteSize = byteSize @layer + byteSize @layers
+    {-# INLINE byteSize #-}
 
 
 

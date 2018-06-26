@@ -8,6 +8,7 @@ import Data.Mutable.Class as X
 import Prologue hiding (FromList, ToList, fromList, toList)
 
 import qualified Data.Construction          as Data
+import qualified Data.Mutable.Plain         as Data
 import qualified Data.Property              as Property
 import qualified Foreign.Storable.Class     as Storable
 import qualified Foreign.Storable1.Deriving as Storable1
@@ -27,10 +28,21 @@ import Foreign.Storable (Storable)
 
 type    ComponentSet__ tag layout = SmallSet 0 (Component tag layout)
 newtype ComponentSet   tag layout = ComponentSet (ComponentSet__ tag layout)
-    deriving (Show, Storable, Insert m, Remove m, ToList m, Size m)
+    deriving (Show, Storable, Remove m, ToList m, Size m)
 
 
 -- === Instances === --
+
+deriving instance Insert m (ComponentSet__ tag layout)
+               => Insert m (ComponentSet tag layout)
+
+deriving instance Data.CopyInitializer m (ComponentSet__ tag layout)
+               => Data.CopyInitializer m (ComponentSet tag layout)
+
+instance Data.CopyInitializer  m (ComponentSet tag ())
+      => Data.CopyInitializer1 m (ComponentSet tag) where
+    copyInitialize1 = \a -> Data.copyInitialize (coerce a :: ComponentSet tag ())
+    {-# INLINE copyInitialize1 #-}
 
 -- type instance Property.Get Storable.Dynamics (ComponentSet _) = Storable.Dynamic
 

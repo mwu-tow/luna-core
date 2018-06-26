@@ -11,7 +11,7 @@ import qualified Data.Mutable.Class                     as Mutable
 
 import Control.Monad                   (filterM)
 import Data.Graph.Component.Edge.Class (type (*-*), Edge, Edges, Source, Target,
-                                        isCyclic)
+                                        cyclic)
 import Data.Graph.Component.Node.Class (Node, Nodes)
 import Data.Graph.Component.Node.Layer (Users)
 import Data.Graph.Data                 (Component)
@@ -39,7 +39,7 @@ substitute ::
     ) => Node a -> Node b -> m ()
 substitute = \new old -> do
      succs    <- Mutable.toList =<< Layer.read @Users old
-     uncycled <- filterM (fmap not . isCyclic)
+     uncycled <- filterM (fmap not . cyclic)
                $ map Layout.unsafeRelayout succs
      mapM_ (replaceSource new) uncycled
 {-# INLINE substitute #-}

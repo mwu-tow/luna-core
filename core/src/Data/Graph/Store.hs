@@ -8,6 +8,7 @@ import qualified Data.Graph.Store.Alloc          as Alloc
 import qualified Data.Graph.Store.Buffer         as Buffer
 import qualified Data.Graph.Store.Internal       as Serialize
 import qualified Data.Graph.Store.Size.Discovery as Size
+import qualified Memory                          as Memory
 
 import Data.Graph.Data.Component.Class (Component)
 -- import Data.Graph.Store.MemoryRegion   (MemoryRegion)
@@ -72,6 +73,8 @@ type Serializer comp m =
     , Size.ClusterSizeCount     (Graph.ComponentsM m) m
     , Buffer.Alloc m
 
+    , Buffer.StaticRegionEncoder (Graph.ComponentsM m) m
+    , Buffer.CompsCopyInitialization (Graph.ComponentsM m) m
 
     , Show (Partition.ClustersM m)
     -- , Alloc.Allocator comps m
@@ -85,12 +88,23 @@ serialize comp = do
     size      <- Size.clusterSize clusters
     ccount    <- Size.componentCount clusters
     buffer    <- Buffer.alloc ccount size
+
+    let dataRegion    = Buffer.dataRegion buffer
+    let dataRegionPtr = unwrap dataRegion
+    swizzleMap <- Memory.withUnmanagedPtr dataRegionPtr $ Buffer.encodeStaticRegion clusters
+
+    -- Buffer.encodeStaticRegion clusters
     print "SERIALIZE"
     print $ "clusters = " <> show clusters
     print $ "size = " <> show size
     print $ "ccount = " <> show ccount
+    pprint swizzleMap
+
+    Buffer.copyInitializeComps @(Graph.ComponentsM m) ccount dataRegion
     -- memRegion <- Alloc.alloc @comps clusters
     pure ()
     -- serInfo   <- Serialize.serializeClusters @comps clusters memRegion
     -- pure $! serInfo ^. Serialize.memoryRegion
 {-# INLINE serialize #-}
+
+

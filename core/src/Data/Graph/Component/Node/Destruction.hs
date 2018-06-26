@@ -61,14 +61,14 @@ deleteSubtreeWithWhitelist whitelist = go . Layout.relayout where
     go :: Node.Some -> m ()
     go root = do
         succs <- Mutable.toList =<< Layer.read @Users root
-        loops <- traverse Edge.isCyclic succs
+        loops <- traverse Edge.cyclic succs
         let allLoops    = and loops
             whitelisted = Set.member root whitelist
         when (allLoops && not whitelisted) $ do
             inputEdges :: [Edge.SomeEdge] <- convert <$> Node.inputs root
             tpEdge <- Layer.read @Type root
             let allInputEdges = Layout.relayout tpEdge : inputEdges
-            nonCyclicEdges <- filterM (fmap not . Edge.isCyclic) allInputEdges
+            nonCyclicEdges <- filterM (fmap not . Edge.cyclic) allInputEdges
             inputs         <- traverse (Layer.read @Source) nonCyclicEdges
             delete root
             traverse_ go $ Set.toList $ Set.fromList inputs

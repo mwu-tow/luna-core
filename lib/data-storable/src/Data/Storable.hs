@@ -191,12 +191,12 @@ instance
 
 instance (HasField name a, Storable.Peek Field IO (FieldType name a), Memory.PtrType (Memory.Management a))
       => FieldReader name a where
-    readFieldByNameIO = \a -> Memory.withRawPtr (fieldPtrByName @name a) $ Storable.peek @Field
+    readFieldByNameIO = \a -> Memory.withUnmanagedRawPtr (fieldPtrByName @name a) $ Storable.peek @Field
     {-# INLINE readFieldByNameIO #-}
 
 instance (HasField name a, Storable.Poke Field IO (FieldType name a), Memory.PtrType (Memory.Management a))
       => FieldWriter name a where
-    writeFieldByNameIO = \a val -> Memory.withRawPtr (fieldPtrByName @name a) $ flip (Storable.poke @Field) val
+    writeFieldByNameIO = \a val -> Memory.withUnmanagedRawPtr (fieldPtrByName @name a) $ flip (Storable.poke @Field) val
     {-# INLINE writeFieldByNameIO #-}
 
 instance
@@ -274,7 +274,7 @@ instance {-# OVERLAPPABLE #-}
     ) => Cons__ a (f ': fs) where
     cons__ = \alloc f a -> cons__ @a @fs alloc $ \ptr ->
         let (!m, !ptr') = f ptr
-            f'          = m >> Memory.withRawPtr ptr' (flip (Storable.poke @Field) a . coerce)
+            f'          = m >> Memory.withUnmanagedRawPtr ptr' (flip (Storable.poke @Field) a . coerce)
             ptr''       = ptr' `Memory.plus` Storable.constantSize @f
         in  (f', ptr'')
     {-# INLINE cons__ #-}
@@ -286,7 +286,7 @@ instance
     ) => Cons__ a '[f] where
     cons__ = \alloc f a -> cons__ @a @('[]) alloc $ \ptr ->
         let (!m, !ptr') = f ptr
-            f'          = m >> Memory.withRawPtr ptr' (flip (Storable.poke @Field) a . coerce)
+            f'          = m >> Memory.withUnmanagedRawPtr ptr' (flip (Storable.poke @Field) a . coerce)
         in  (f', ptr')
     {-# INLINE cons__ #-}
 
