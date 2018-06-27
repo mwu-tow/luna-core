@@ -25,23 +25,27 @@ import qualified Foreign.Storable.Class          as Storable
 import qualified Memory                          as Memory
 import qualified Type.Data.List                  as List
 
-import qualified Data.Graph.Fold.Class     as Fold
-import qualified Data.Graph.Fold.Filter    as Fold
-import qualified Data.Graph.Fold.ScopedMap as Fold
-import qualified Data.Graph.Fold.Struct    as Fold
+import qualified Data.Graph.Fold.Class  as Fold
+import qualified Data.Graph.Fold.Filter as Fold
+import qualified Data.Graph.Fold.Scoped as Fold
+import qualified Data.Graph.Fold.Struct as Fold
 
-import Data.ByteString                 (ByteString)
-import Data.Graph.Data.Component.Class (Component)
-import Data.Graph.Data.Component.Set   (ComponentSet)
-import Data.Graph.Store.Size.Class     (Size)
-import Data.Map.Strict                 (Map)
-import Data.Mutable.Storable.Array     (ManagedArray)
-import Data.Storable                   (type (-::), ManagedStruct)
-import Foreign.ForeignPtr              (touchForeignPtr)
-import Foreign.ForeignPtr.Unsafe       (unsafeForeignPtrToPtr)
-import Foreign.ForeignPtr.Utils        (SomeForeignPtr)
-import Foreign.Ptr.Utils               (SomePtr)
-import Type.Data.Semigroup             (type (<>))
+import Data.ByteString                       (ByteString)
+import Data.Graph.Data.Component.Class       (Component)
+import Data.Graph.Data.Component.Set         (ComponentSet, ComponentSetA)
+import Data.Graph.Data.Component.Vector      (ComponentVector, ComponentVectorA)
+import Data.Graph.Store.Size.Class           (Size)
+import Data.Map.Strict                       (Map)
+import Data.Mutable.Storable.Array           (ManagedArray)
+import Data.Mutable.Storable.SmallAutoVector (SmallVectorA)
+import Data.Storable                         (type (-::), ManagedStruct)
+import Foreign.ForeignPtr                    (touchForeignPtr)
+import Foreign.ForeignPtr.Unsafe             (unsafeForeignPtrToPtr)
+import Foreign.ForeignPtr.Utils              (SomeForeignPtr)
+import Foreign.Ptr.Utils                     (SomePtr)
+import Type.Data.Semigroup                   (type (<>))
+
+import qualified Type.Show as Type
 
 
 ------------------------------
@@ -65,6 +69,8 @@ instance Applicative m
 
 
 type instance Item (UnknownSizeMemRegion t a) = a
+
+deriving instance Show (Memory.Ptr t a) => Show (UnknownSizeMemRegion t a)
 
 instance (Memory.PtrType t, Storable.Peek Storable.View m a, MonadIO m, Storable.KnownConstantSize a)
       => Mutable.Read m (UnknownSizeMemRegion t a) where
@@ -94,9 +100,8 @@ test :: Fold.Builder1 (Fold.Scoped CopyInitialization) m (Component comp)
 test = \comp -> Fold.build1 @(Fold.Scoped CopyInitialization) comp (pure ())
 
 instance (Monad m, CopyInitializerP1 m (Layer.Cons layer))
-      => Fold.LayerMap CopyInitialization m layer where
-    mapLayer = \layer _ -> do
-        (,()) <$> copyInitializeP1 layer
+      => Fold.LayerBuilder CopyInitialization m layer where
+        layerBuild = \layer _ -> () <$ copyInitializeP1 layer
 
 
 
@@ -106,11 +111,45 @@ class Applicative m => CopyInitializerP1 m a where
     {-# INLINE copyInitializeP1 #-}
 
 
-instance (Data.CopyInitializer1 m (ComponentSet comp), Applicative m)
+newtype StoreDynState = StoreDynState (Memory.UnmanagedPtr ())
+makeLenses ''StoreDynState
+
+data StoreDyn
+type StoreDynAllocator = 'Memory.Allocator StoreDyn
+
+instance (State.Monad StoreDynState m, Storable.KnownConstantSize a)
+      => Memory.Allocation StoreDynAllocator 'Memory.Unmanaged a m where
+    allocate n = do
+        ptr <- unwrap <$> State.get @StoreDynState
+        State.put @StoreDynState $ wrap $ ptr `Memory.plus` (n * Storable.constantSize @a)
+        pure (coerce ptr)
+
+instance (Data.CopyInitializer1 m (ComponentSetA StoreDynAllocator comp), Applicative m)
       => CopyInitializerP1 m (ComponentSet comp) where
-    copyInitializeP1 = \a -> a <$ Data.copyInitialize1 a
+    copyInitializeP1 = \a -> a <$ Data.copyInitialize1 (Memory.setAllocator @StoreDynAllocator a)
 
 instance Applicative m => CopyInitializerP1 m (Component comp)
+
+instance {-# OVERLAPPABLE #-}
+    ( Fold.Builder1 (Fold.Struct CopyInitialization) m a
+    , Applicative m
+    ) => CopyInitializerP1 m a where
+    copyInitializeP1 = \a -> a <$ (Fold.build1 @(Fold.Struct CopyInitialization) a (pure ()))
+
+
+instance (Data.CopyInitializer1 m (ComponentSetA StoreDynAllocator comp), Monad m)
+      => Fold.Builder1 CopyInitialization m (ComponentSet comp) where
+    build1 = \a x -> x <* Data.copyInitialize1 (Memory.setAllocator @StoreDynAllocator a)
+
+instance (Data.CopyInitializer1 m (ComponentVectorA StoreDynAllocator comp), Monad m)
+      => Fold.Builder1 CopyInitialization m (ComponentVector comp) where
+    build1 = \a x -> x <* Data.copyInitialize1 (Memory.setAllocator @StoreDynAllocator a)
+
+instance (Data.CopyInitializer m (SmallVectorA StoreDynAllocator n a), Monad m)
+      => Fold.Builder CopyInitialization m (SmallVectorA alloc n a) where
+    build = \a x -> x <* Data.copyInitialize (Memory.setAllocator @StoreDynAllocator a)
+
+instance Monad m => Fold.Builder1 CopyInitialization m (Component comp)
 
 
 --------------------------------
@@ -121,6 +160,15 @@ instance Applicative m => CopyInitializerP1 m (Component comp)
 -----------------------------
 -- === CopyInitializer === --
 -----------------------------
+
+type CompsCopyInitializationX comps m = CompsCopyInitialization comps (State.StateT StoreDynState m)
+
+copyInitializeCompsX :: ∀ (comps :: [Type]) m.
+    (MonadIO m, CompsCopyInitialization comps (State.StateT StoreDynState m))
+    => [Int] -> BufferDataRegion -> BufferDataRegion -> m ()
+copyInitializeCompsX ccount region dynRegion = Memory.withUnmanagedPtr (unwrap dynRegion) $ \ptr ->
+    flip (State.evalT @StoreDynState) (StoreDynState ptr) $ copyInitializeComps @comps ccount region
+
 
 
 instance Fold.Builder1 (Fold.Scoped CopyInitialization) m (Component comp)
@@ -146,14 +194,21 @@ instance
     , Data.CopyInitializer1 m (Component comp)
     , CompsCopyInitialization comps m
     , MonadIO m
+    , Type.Show comp
     )
       => CompsCopyInitialization (comp ': comps) m where
     copyInitializeComps = \(compCount : compCounts) region -> do
-        let region'    = coerce region :: UnknownSizeMemRegion 'Memory.Managed (Component.Some comp)
-            compSize   = Layer.byteSize @layers
+        let compSize   = Layer.byteSize @layers
             regionPtr  = unwrap region
-            regionPtr' = wrap $ (unwrap region) `Memory.plus` (compSize * compSize)
-        mapM_ (Data.copyInitialize1 <=< Mutable.unsafeRead region') [0..compSize]
+            regionPtr' = wrap $ regionPtr `Memory.plus` (compSize * compCount)
+        putStrLn $ "copyInitializeComps for " <> Type.show @comp <> " (" <> show compCount <> ")"
+        flip mapM_ [0 .. compCount - 1] $ \ix -> do
+            putStrLn $ ">> " <> show ix <> " (" <> show region <> ")"
+            let ptr  = regionPtr `Memory.plus` (ix * compSize)
+            Memory.withUnmanagedPtr ptr $ \uptr ->
+                let comp = Component.unsafeFromPtr @comp (unwrap uptr)
+                in  Data.copyInitialize1 comp
+
         copyInitializeComps @comps compCounts regionPtr'
 
 
@@ -209,6 +264,13 @@ dataRegion :: Graph.KnownComponentNumber graph
     => Buffer graph -> BufferDataRegion
 dataRegion = coerce . Struct.fieldPtr field_memoryRegion
 {-# INLINE dataRegion #-}
+
+dynDataRegion :: (Graph.KnownComponentNumber graph, MonadIO m)
+    => Buffer graph -> m BufferDataRegion
+dynDataRegion = \a -> do
+    staticSize <- Struct.readField field_staticDataRegionSize  a
+    pure $ coerce (Struct.fieldPtr field_memoryRegion a `Memory.plus` staticSize)
+{-# INLINE dynDataRegion #-}
 
 componentElems :: Buffer graph -> ManagedArray (Graph.ComponentNumber graph) Int
 componentElems = coerce . Struct.fieldPtr field_componentElems
@@ -270,13 +332,13 @@ deriving instance Show (Buffer graph)
 
 -- === Definition === --
 
-type SwizzleMap = Map Memory.SomeUnmanagedPtr Memory.SomeUnmanagedPtr
+type RedirectMap = Map Memory.SomeUnmanagedPtr Memory.SomeUnmanagedPtr
 
 type StaticRegionEncoder comps m
-    = (StaticRegionEncoder__ comps (State.StateT SwizzleMap m), Monad m)
+    = (StaticRegionEncoder__ comps (State.StateT RedirectMap m), Monad m)
 
 encodeStaticRegion :: StaticRegionEncoder comps m
-    => Partition.Clusters comps -> Memory.SomeUnmanagedPtr -> m SwizzleMap
+    => Partition.Clusters comps -> Memory.SomeUnmanagedPtr -> m RedirectMap
 encodeStaticRegion = flip State.execT mempty .: encodeStaticRegion__
 
 
@@ -313,14 +375,15 @@ class StaticComponentEncoder__ comp m where
 instance
     ( layers ~ Graph.ComponentLayersM m comp
     , Layer.KnownByteSize layers
-    , State.Monad SwizzleMap m
+    , State.Monad RedirectMap m
     , MonadIO m
     ) => StaticComponentEncoder__ comp m where
     encodeComponentStatic__ = \tgtPtr comp -> do
         let srcPtr   = Convert.convert (Component.unsafeToPtr comp)
             compSize = Layer.byteSize @layers
+        putStrLn $ "copyAndOffsetBytes " <> show (tgtPtr, srcPtr, compSize)
         nextSrcPtr <- Memory.copyAndOffsetBytes tgtPtr srcPtr compSize
-        State.modify_ @SwizzleMap $ Map.insert srcPtr tgtPtr
+        State.modify_ @RedirectMap $ Map.insert srcPtr tgtPtr
         return nextSrcPtr
     {-# INLINE encodeComponentStatic__ #-}
 

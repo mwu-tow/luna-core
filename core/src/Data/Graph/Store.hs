@@ -74,7 +74,7 @@ type Serializer comp m =
     , Buffer.Alloc m
 
     , Buffer.StaticRegionEncoder (Graph.ComponentsM m) m
-    , Buffer.CompsCopyInitialization (Graph.ComponentsM m) m
+    , Buffer.CompsCopyInitializationX (Graph.ComponentsM m) m
 
     , Show (Partition.ClustersM m)
     -- , Alloc.Allocator comps m
@@ -84,6 +84,8 @@ type Serializer comp m =
 serialize :: ∀ comp m layout. Serializer comp m
     => Component comp layout -> m () -- MemoryRegion
 serialize comp = do
+    putStrLn "\nSERIALIZE"
+
     clusters  <- Partition.partition comp
     size      <- Size.clusterSize clusters
     ccount    <- Size.componentCount clusters
@@ -91,16 +93,23 @@ serialize comp = do
 
     let dataRegion    = Buffer.dataRegion buffer
     let dataRegionPtr = unwrap dataRegion
+    dynDataRegion <- Buffer.dynDataRegion buffer
+
+    putStrLn "\n=== clusters ===" >> pprint clusters
+
+    putStrLn $ "\nsize = " <> show size
+    putStrLn $ "\nccount = " <> show ccount
+
+    putStrLn "\n=== encodeStaticRegion ==="
     swizzleMap <- Memory.withUnmanagedPtr dataRegionPtr $ Buffer.encodeStaticRegion clusters
 
     -- Buffer.encodeStaticRegion clusters
-    print "SERIALIZE"
-    print $ "clusters = " <> show clusters
-    print $ "size = " <> show size
-    print $ "ccount = " <> show ccount
+
+    putStrLn "\n=== swizzleMap ==="
     pprint swizzleMap
 
-    Buffer.copyInitializeComps @(Graph.ComponentsM m) ccount dataRegion
+    putStrLn "\n=== copyInitializeComps ==="
+    Buffer.copyInitializeCompsX @(Graph.ComponentsM m) ccount dataRegion dynDataRegion
     -- memRegion <- Alloc.alloc @comps clusters
     pure ()
     -- serInfo   <- Serialize.serializeClusters @comps clusters memRegion

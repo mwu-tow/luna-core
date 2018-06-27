@@ -19,6 +19,7 @@ import qualified Foreign.Marshal.Utils            as Mem
 import qualified Foreign.Storable                 as StdStorable
 import qualified Foreign.Storable.Class           as Storable
 import qualified Memory                           as Memory
+import qualified Type.Data.Maybe                  as Type
 import qualified Type.Known                       as Type
 
 import Data.Storable          (type (-::), UnmanagedStruct)
@@ -140,7 +141,7 @@ instance (MonadIO m, Type.KnownInt n)
 instance
     ( MonadIO m
     , Storable.KnownConstantSize (SmallVectorA alloc n a)
-    , Type.KnownInt n
+    , PlacementNew m (SmallVectorA alloc n a)
     ) => New m (SmallVectorA alloc n a) where
     new = do
         ptr <- liftIO . Mem.mallocBytes
@@ -195,7 +196,7 @@ instance (Monad m, New m (SmallVectorA alloc n a), PushBack m (SmallVectorA allo
         pure a
     {-# INLINE fromList #-}
 
-instance (MonadIO m, Storable.KnownConstantSize a, Memory.Allocation alloc a m)
+instance (MonadIO m, Storable.KnownConstantSize a, Memory.UnmanagedAllocation alloc a m)
       => Grow m (SmallVectorA alloc n a) where
     grow = \a -> do
         oldCapacity <- capacity a
@@ -282,8 +283,9 @@ instance MonadIO m => Data.ShallowDestructor1 m (SmallVectorA alloc n) where
 instance
     ( MonadIO m
     , Storable.KnownConstantSize a
-    , Memory.Allocation alloc a m
-    ) => Data.CopyInitializer m (SmallVectorA alloc n a) where
+    , Memory.UnmanagedAllocation alloc a m
+    , alloc ~ Type.FromMaybe valloc malloc
+    ) => Data.CopyInitializerA malloc m (SmallVectorA valloc n a) where
     copyInitialize = \a -> whenM_ (usesDynamicMemory a) $ do
         cap       <- capacity a
         elemCount <- size     a

@@ -12,9 +12,10 @@ import qualified Data.Mutable.Plain         as Data
 import qualified Data.Property              as Property
 import qualified Foreign.Storable.Class     as Storable
 import qualified Foreign.Storable1.Deriving as Storable1
+import qualified Memory                     as Memory
 
 import Data.Graph.Data.Component.Class (Component)
-import Data.Mutable.Storable.SmallSet  (SmallSet)
+import Data.Mutable.Storable.SmallSet  (SmallSetA)
 -- import Foreign.DynamicStorable (DynamicStorable)
 import Foreign.Storable (Storable)
 
@@ -26,45 +27,48 @@ import Foreign.Storable (Storable)
 
 -- === Definition === --
 
-type    ComponentSet__ tag layout = SmallSet 0 (Component tag layout)
-newtype ComponentSet   tag layout = ComponentSet (ComponentSet__ tag layout)
+type    ComponentSet = ComponentSetA Memory.StdAllocator
+newtype ComponentSetA alloc tag layout
+      = ComponentSet (ComponentSet__ alloc tag layout)
     deriving (Show, Storable, Remove m, ToList m, Size m)
+
+type ComponentSet__ alloc tag layout = SmallSetA alloc 0 (Component tag layout)
 
 
 -- === Instances === --
 
-deriving instance Insert m (ComponentSet__ tag layout)
-               => Insert m (ComponentSet tag layout)
+deriving instance Insert m (ComponentSet__ alloc tag layout)
+               => Insert m (ComponentSetA  alloc tag layout)
 
-deriving instance Data.CopyInitializer m (ComponentSet__ tag layout)
-               => Data.CopyInitializer m (ComponentSet tag layout)
+deriving instance Data.CopyInitializer m (ComponentSet__ alloc tag layout)
+               => Data.CopyInitializer m (ComponentSetA  alloc tag layout)
 
-instance Data.CopyInitializer  m (ComponentSet tag ())
-      => Data.CopyInitializer1 m (ComponentSet tag) where
-    copyInitialize1 = \a -> Data.copyInitialize (coerce a :: ComponentSet tag ())
+instance Data.CopyInitializer  m (ComponentSetA alloc tag ())
+      => Data.CopyInitializer1 m (ComponentSetA alloc tag) where
+    copyInitialize1 = \a -> Data.copyInitialize (coerce a :: ComponentSetA alloc tag ())
     {-# INLINE copyInitialize1 #-}
 
 -- type instance Property.Get Storable.Dynamics (ComponentSet _) = Storable.Dynamic
 
-type instance Item (ComponentSet tag layout) = Component tag layout
+type instance Item (ComponentSetA _ tag layout) = Component tag layout
 
-instance Storable.KnownConstantSize (ComponentSet__ n a)
-      => Storable.KnownConstantSize (ComponentSet n a) where
-    constantSize = Storable.constantSize @(ComponentSet__ n a)
+instance Storable.KnownConstantSize (ComponentSet__ alloc tag layout)
+      => Storable.KnownConstantSize (ComponentSetA  alloc tag layout) where
+    constantSize = Storable.constantSize @(ComponentSet__ alloc tag layout)
     {-# INLINE constantSize #-}
 
-instance Storable.KnownSize t m (ComponentSet__ n a)
-      => Storable.KnownSize t m (ComponentSet n a) where
+instance Storable.KnownSize t m (ComponentSet__ alloc tag layout)
+      => Storable.KnownSize t m (ComponentSetA  alloc tag layout) where
     size = Storable.size @t . unwrap
     {-# INLINE size #-}
 
-instance (FromList m (Unwrapped (ComponentSet comp layout)), Functor m)
-      => FromList m (ComponentSet comp layout) where
+instance (FromList m (ComponentSet__ alloc comp layout), Functor m)
+      =>  FromList m (ComponentSetA  alloc comp layout) where
     fromList = fmap wrap . fromList
     {-# INLINE fromList #-}
 
-instance (New m (Unwrapped (ComponentSet comp layout)), Functor m)
-      => New m (ComponentSet comp layout) where
+instance (New m (ComponentSet__ alloc comp layout), Functor m)
+      =>  New m (ComponentSetA  alloc comp layout) where
     new = wrap <$> new
     {-# INLINE new #-}
 
@@ -86,14 +90,14 @@ instance (New m (Unwrapped (ComponentSet comp layout)), Functor m)
 --     construct2 = \ _ -> wrap <$> Data.construct1'
 --     {-# INLINE construct2 #-}
 
-instance MonadIO m => Data.ShallowDestructor2 m ComponentSet where
+instance MonadIO m => Data.ShallowDestructor2 m (ComponentSetA alloc) where
     destructShallow2 = Data.destruct1 . unwrap
     {-# INLINE destructShallow2 #-}
 
 instance MonadIO m
-      => Storable.KnownSize2 Storable.Dynamic m ComponentSet where
+      => Storable.KnownSize2 Storable.Dynamic m (ComponentSetA alloc) where
     size2 = Storable.size @Storable.Dynamic . unwrap
     {-# INLINE size2 #-}
 
-makeLenses ''ComponentSet
-Storable1.derive ''ComponentSet
+makeLenses ''ComponentSetA
+Storable1.derive ''ComponentSetA

@@ -288,37 +288,48 @@ test = describe "test" $ it "test" $ runPass' $ do
     print "=============="
     print "=============="
 
-    v <- IR.var "a"
-    v2 <- IR.var "a"
+    v  <- IR.var "a"
     vn <- Mutable.fromList ["foo", "bar", "baz"]
 
-    print "vvvvvvvvvv"
     u <- IR.update v vn v
-    print "^^^^^^^^^^"
+    IR.Update vu1 _ vu2 <- IR.model u
 
-    print $ ": v  = " <> show v
-    print $ ": v2 = " <> show v2
-    print $ ": u  = " <> show u
 
-    users <- Layer.read @IR.Users v
-    tp    <- Layer.read @IR.Type v
-    print $ "tp: " <> show tp
-    print =<< PtrSet.toList users
-    print =<< PtrSet.size   users
-    print "***"
 
-    print =<< Size.discoverDynamic v
-    print vn
 
-    print "--------------------------"
+    -- users <- Layer.read @IR.Users v
+    putStrLn "\n=== elements ==="
+    vtpl    <- Layer.read @IR.Type v
+    vtp     <- Layer.read @IR.Source vtpl
+    vttpl   <- Layer.read @IR.Type vtp
+
+    putStrLn $ ": v     = " <> show v
+    putStrLn $ ": u     = " <> show u
+    putStrLn $ ": vu1   = " <> show vu1
+    putStrLn $ ": vu2   = " <> show vu2
+    putStrLn $ ": vtpl  = " <> show vtpl
+    putStrLn $ ": vtp   = " <> show vtp
+    putStrLn $ ": vttpl = " <> show vttpl
+
+
+    -- print $ "tp: " <> show tp
+    -- print =<< PtrSet.toList users
+    -- print =<< PtrSet.size   users
+    -- print "***"
+
+    -- print =<< Size.discoverDynamic v
+    -- print vn
+
+    -- print "--------------------------"
 
     Store.serialize v
+    print "END"
     True `shouldBe` True
 
 spec :: Spec
 spec = do
 
-    testVec
+    -- testVec
     -- testSet
     test
     nameSpec
@@ -332,4 +343,4 @@ spec = do
 
 
 -- TODO: REMOVE REMOVE REMOVE
-instance Applicative m => Buffer.CopyInitializerP1 m IR.UniTerm
+-- instance Applicative m => Buffer.CopyInitializerP1 m IR.UniTerm

@@ -10,12 +10,14 @@ import Prologue                        hiding (FromList, ToList, fromList,
                                         toList)
 
 import qualified Data.Construction            as Data
+import qualified Data.Mutable.Plain           as Data
 import qualified Data.Property                as Property
 import qualified Data.Vector.Storable.Foreign as Vector
 import qualified Foreign.Storable.Class       as Storable
 import qualified Foreign.Storable1.Deriving   as Storable1
+import qualified Memory                       as Memory
 
-import Data.Mutable.Storable.SmallAutoVector (SmallVector)
+import Data.Mutable.Storable.SmallAutoVector (SmallVector, SmallVectorA)
 import Foreign.DynamicStorable               (DynamicStorable)
 import Foreign.Storable                      (Storable)
 
@@ -26,11 +28,16 @@ import Foreign.Storable                      (Storable)
 
 -- === Definition === --
 
-newtype ComponentVector comp layout
-    = ComponentVector (SmallVector 0 (Component comp layout))
+type    ComponentVector = ComponentVectorA Memory.StdAllocator
+newtype ComponentVectorA alloc comp layout
+    = ComponentVector (ComponentVector__ alloc comp layout)
     deriving (Eq, Show, Storable) -- Storable, DynamicStorable)
-makeLenses       ''ComponentVector
 -- Storable1.derive ''ComponentVector
+
+type ComponentVector__ alloc comp layout
+   = SmallVectorA alloc 0 (Component comp layout)
+
+makeLenses       ''ComponentVectorA
 
 
 -- -- === API === --
@@ -45,26 +52,36 @@ makeLenses       ''ComponentVector
 
 -- -- === Instances === --
 
-type instance Item (ComponentVector comp layout) = Component comp layout
 
-instance (FromList m (Unwrapped (ComponentVector comp layout)), Functor m)
-      => FromList m (ComponentVector comp layout) where
+deriving instance Data.CopyInitializer m (ComponentVector__ alloc tag layout)
+               => Data.CopyInitializer m (ComponentVectorA  alloc tag layout)
+
+instance Data.CopyInitializer  m (ComponentVectorA alloc tag ())
+      => Data.CopyInitializer1 m (ComponentVectorA alloc tag) where
+    copyInitialize1 = \a -> Data.copyInitialize (coerce a :: ComponentVectorA alloc tag ())
+    {-# INLINE copyInitialize1 #-}
+
+
+type instance Item (ComponentVectorA _ comp layout) = Component comp layout
+
+instance (FromList m (ComponentVector__ alloc comp layout), Functor m)
+      => FromList m (ComponentVectorA alloc comp layout) where
     fromList = fmap wrap . fromList
     {-# INLINE fromList #-}
 
-instance ToList m (Unwrapped (ComponentVector comp layout))
-      => ToList m (ComponentVector comp layout) where
+instance ToList m (ComponentVector__ alloc comp layout)
+      => ToList m (ComponentVectorA alloc comp layout) where
     toList = toList . unwrap
     {-# INLINE toList #-}
 
 -- type instance Property.Get Storable.Dynamics (ComponentVector _)
 --    = Storable.Dynamic
 
-instance MonadIO m => Data.ShallowDestructor2 m ComponentVector where
+instance MonadIO m => Data.ShallowDestructor2 m (ComponentVectorA alloc) where
     destructShallow2 = Data.destructShallow1 . unwrap
     {-# INLINE destructShallow2 #-}
 
 instance MonadIO m
-      => Storable.KnownSize2 Storable.Dynamic m ComponentVector where
+      => Storable.KnownSize2 Storable.Dynamic m (ComponentVectorA alloc) where
     size2 = Storable.size @Storable.Dynamic . unwrap
     {-# INLINE size2 #-}

@@ -1,4 +1,3 @@
-{-# LANGUAGE TypeInType           #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 module Memory.Allocation where
@@ -7,6 +6,9 @@ import Prologue
 
 import qualified Foreign.Storable.Class as Storable
 import qualified Memory.Data.Ptr        as Memory
+import qualified Memory.Management      as Memory
+import qualified Type.Data.Parameter    as Parameter
+
 
 
 -------------------------------
@@ -17,39 +19,33 @@ import qualified Memory.Data.Ptr        as Memory
 
 data Allocator = Allocator Type
 
-class Allocation (alloc :: Allocator) a m where
-    allocate :: ∀ t. Memory.PtrType t => Int -> m (Memory.Ptr t a)
+class Allocation (alloc :: Allocator) (t :: Memory.ManagementType) a m where
+    allocate :: Int -> m (Memory.Ptr t a)
+
+
+-- === Aliases === --
+
+type ManagedAllocation   alloc = Allocation alloc 'Memory.Managed
+type UnmanagedAllocation alloc = Allocation alloc 'Memory.Unmanaged
 
 
 -- === StdAllocator === --
 
 data Std
 type StdAllocator = 'Allocator Std
-instance (MonadIO m, Storable.KnownConstantSize a)
-      => Allocation StdAllocator a m where
+instance (MonadIO m, Storable.KnownConstantSize a, Memory.PtrType t)
+      => Allocation StdAllocator t a m where
     allocate = Memory.mallocBytes . (Storable.constantSize @a *)
     {-# INLINE allocate #-}
 
 
-
-------------------------------------
 -- === Allocator manipulation === --
-------------------------------------
 
--- === Definition === --
-
-type family GetAllocator (t :: k) :: Allocator where
-    GetAllocator (t a) = a
-    GetAllocator (t _) = GetAllocator t
-    GetAllocator _     = StdAllocator
-
-type family SetAllocator (alloc :: Allocator) (t :: k) :: k where
-    SetAllocator a (t _) = a
-    SetAllocator a (t s) = SetAllocator a t s
-
-
--- === Utils === --
+type GetAllocator   t = Parameter.GetByKind Allocator   t
+type SetAllocator v t = Parameter.SetByKind Allocator v t
+type instance Parameter.DefaultByKind Allocator = StdAllocator
 
 setAllocator :: ∀ alloc a. a -> SetAllocator alloc a
-setAllocator = unsafeCoerce
+setAllocator = Parameter.setByKind @Allocator @alloc
 {-# INLINE setAllocator #-}
+

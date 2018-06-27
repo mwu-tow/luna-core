@@ -16,14 +16,13 @@ import qualified Data.Graph.Fold.Struct           as Fold
 import qualified Foreign.Storable.Deriving        as Storable
 import qualified Foreign.Storable.Utils           as Storable
 
-import Data.Graph.Data.Component.Class  (Component)
-import Data.Graph.Data.Component.Set    (ComponentSet)
-import Data.Graph.Data.Component.Vector (ComponentVector)
-import Data.PtrSet.Mutable              (IsPtr, UnmanagedPtrSet)
-import Data.Vector.Storable.Foreign     (Vector)
-import Foreign.Ptr                      (Ptr, plusPtr)
-import Foreign.Ptr.Utils                (SomePtr)
-import Foreign.Storable.Utils           (Storable)
+import Data.Graph.Data.Component.Class (Component)
+import Data.Graph.Data.Component.Set   (ComponentSet)
+import Data.PtrSet.Mutable             (IsPtr, UnmanagedPtrSet)
+import Data.Vector.Storable.Foreign    (Vector)
+import Foreign.Ptr                     (Ptr, plusPtr)
+import Foreign.Ptr.Utils               (SomePtr)
+import Foreign.Storable.Utils          (Storable)
 
 
 

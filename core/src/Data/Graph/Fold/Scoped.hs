@@ -25,9 +25,9 @@ import qualified Type.Data.List                   as List
 import Data.Generics.Traversable             (GTraversable)
 import Data.Graph.Data.Component.Class       (Component)
 import Data.Graph.Data.Component.Set         (ComponentSet)
-import Data.Graph.Data.Component.Vector      (ComponentVector)
-import Data.Set                              (Set)
+import Data.Graph.Data.Component.Vector      (ComponentVectorA)
 import Data.Mutable.Storable.SmallAutoVector (SmallVector)
+import Data.Set                              (Set)
 import Data.Vector.Storable.Foreign          (Vector)
 import Foreign.Ptr.Utils                     (SomePtr)
 import Type.Data.Bool                        (Not, type (||))
@@ -100,7 +100,7 @@ instance {-# OVERLAPPABLE #-}
 --           but it will overlap then. We need to think for better generalization of it here.
 instance {-# OVERLAPPABLE #-}
     (MonadIO m, Fold.Builder1 (Scoped t) m (Component comp))
-      => Fold.Builder1 (Scoped t) m (ComponentVector comp) where
+      => Fold.Builder1 (Scoped t) m (ComponentVectorA alloc comp) where
     build1 = \comp mr -> do
         lst <- Mutable.toList comp
         let f = foldl' (\f a -> f . Fold.build1 @(Scoped t) a) id lst

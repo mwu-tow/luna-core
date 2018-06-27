@@ -31,9 +31,9 @@ import Data.Graph.Component.Node.Class       (Constructor)
 import Data.Graph.Data.Component.Class       (Component)
 import Data.Graph.Data.Component.List        (ComponentList)
 import Data.Graph.Data.Component.Set         (ComponentSet)
-import Data.Graph.Data.Component.Vector      (ComponentVector)
-import Data.Set                              (Set)
+import Data.Graph.Data.Component.Vector      (ComponentVectorA)
 import Data.Mutable.Storable.SmallAutoVector (SmallVector)
+import Data.Set                              (Set)
 import Data.Vector.Storable.Foreign          (Vector)
 import Foreign.Ptr.Utils                     (SomePtr)
 import Type.Data.Bool                        (Not, type (||))
@@ -134,18 +134,18 @@ instance MonadIO m
 
 -- === ComponentVector === --
 
-instance (Fold.Builder1 (Discovery comp) m (ComponentVector comp))
-      => Fold.Builder (Discovery comp) m (ComponentVector comp layout) where
+instance (Fold.Builder1 (Discovery comp) m (ComponentVectorA alloc comp))
+      => Fold.Builder (Discovery comp) m (ComponentVectorA alloc comp layout) where
     build = Fold.build1 @(Discovery comp)
     {-# INLINE build #-}
 
 instance {-# OVERLAPPABLE #-} Monad m
-      => Fold.Builder1 (Discovery comp) m (ComponentVector comp') where
+      => Fold.Builder1 (Discovery comp) m (ComponentVectorA alloc comp') where
     build1 = \_ -> id
     {-# INLINE build1 #-}
 
 instance MonadIO m
-      => Fold.Builder1 (Discovery comp) m (ComponentVector comp) where
+      => Fold.Builder1 (Discovery comp) m (ComponentVectorA alloc comp) where
     build1 = \a acc
         -> (\a b -> a <> b) <$> (convert <$> ComponentVector.toList a) <*> acc
     {-# INLINE build1 #-}
