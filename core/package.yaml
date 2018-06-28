@@ -129,6 +129,7 @@ tests:
             - luna-data-storable
             - luna-exception
             - luna-foreign-utils
+            - luna-generic-traversable
             - luna-typelevel
             - prologue
 

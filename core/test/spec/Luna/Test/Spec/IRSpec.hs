@@ -8,6 +8,7 @@ import Prologue
 import Test.Hspec.Expectations.Lifted
 
 import qualified Control.Monad.Exception               as Exception
+import qualified Data.Generics.Traversable             as GTraversable
 import qualified Data.Graph.Component.Edge.Class       as Edge
 import qualified Data.Graph.Data.Component.Set         as PtrSet
 import qualified Data.Graph.Data.Graph.Class           as Graph
@@ -33,7 +34,8 @@ import qualified Luna.Pass.Attr                        as Attr
 import qualified Luna.Pass.Basic                       as Pass
 import qualified Luna.Pass.Scheduler                   as Scheduler
 
-import qualified Data.Graph.Store.Buffer as Buffer
+import qualified Data.Graph.Store.Buffer  as Buffer
+import qualified Luna.IR.Term.Ast.Invalid as InvalidIR
 
 import Data.Graph.Data.Graph.Class           (Graph)
 import Data.Mutable.Storable.SmallAutoVector (SmallVector)
@@ -289,10 +291,10 @@ test = describe "test" $ it "test" $ runPass' $ do
     print "=============="
 
     v  <- IR.var "a"
-    vn <- Mutable.fromList ["foo", "bar", "baz"]
 
-    u <- IR.update v vn v
-    IR.Update vu1 _ vu2 <- IR.model u
+    -- vn <- Mutable.fromList ["foo", "bar", "baz"]
+    -- u <- IR.update v vn v
+    -- IR.Update vu1 _ vu2 <- IR.model u
 
 
 
@@ -304,9 +306,9 @@ test = describe "test" $ it "test" $ runPass' $ do
     vttpl   <- Layer.read @IR.Type vtp
 
     putStrLn $ ": v     = " <> show v
-    putStrLn $ ": u     = " <> show u
-    putStrLn $ ": vu1   = " <> show vu1
-    putStrLn $ ": vu2   = " <> show vu2
+    -- putStrLn $ ": u     = " <> show u
+    -- putStrLn $ ": vu1   = " <> show vu1
+    -- putStrLn $ ": vu2   = " <> show vu2
     putStrLn $ ": vtpl  = " <> show vtpl
     putStrLn $ ": vtp   = " <> show vtp
     putStrLn $ ": vttpl = " <> show vttpl
@@ -344,3 +346,29 @@ spec = do
 
 -- TODO: REMOVE REMOVE REMOVE
 -- instance Applicative m => Buffer.CopyInitializerP1 m IR.UniTerm
+
+
+instance
+    ( ctx ~ Buffer.PointerRedirection m
+    , MonadIO m
+    ) => Buffer.PointerRedirection1 m IR.UniTerm where
+    redirectPointers1 = \f
+        -> GTraversable.gmapM @(GTraversable.GTraversable ctx)
+         $ GTraversable.gmapM @ctx (Buffer.redirectPointers f)
+
+
+    --      instance (MonadIO m, ctx ~ Data.ShallowDestructor m)
+    --      => Data.ShallowDestructor1 m UniTerm where
+    --    destructShallow1 = GTraversable.gmapM_ @(GTraversable ctx)
+    --                     $ GTraversable.gmapM_ @ctx Data.destructShallow
+    --    {-# INLINE destructShallow1 #-}
+
+
+instance Applicative m => Buffer.PointerRedirection m (SmallVector.SmallVectorA alloc n IR.Name)
+instance Applicative m => Buffer.PointerRedirection m (SmallVector.SmallVectorA alloc n Char)
+instance Applicative m => Buffer.PointerRedirection m (SmallVector.SmallVectorA alloc n Word8)
+instance Applicative m => Buffer.PointerRedirection m IR.Name
+instance Applicative m => Buffer.PointerRedirection m IR.ForeignImportType
+instance Applicative m => Buffer.PointerRedirection m IR.ImportSourceData
+instance Applicative m => Buffer.PointerRedirection m IR.ImportTargetData
+instance Applicative m => Buffer.PointerRedirection m InvalidIR.Symbol

@@ -30,7 +30,7 @@ import Foreign.Storable (Storable)
 type    ComponentSet = ComponentSetA Memory.StdAllocator
 newtype ComponentSetA alloc tag layout
       = ComponentSet (ComponentSet__ alloc tag layout)
-    deriving (Show, Storable, Remove m, ToList m, Size m)
+    deriving (Show, Storable, Remove m, ToList m, Size m, Map m)
 
 type ComponentSet__ alloc tag layout = SmallSetA alloc 0 (Component tag layout)
 
@@ -42,6 +42,7 @@ deriving instance Insert m (ComponentSet__ alloc tag layout)
 
 deriving instance Data.CopyInitializer m (ComponentSet__ alloc tag layout)
                => Data.CopyInitializer m (ComponentSetA  alloc tag layout)
+
 
 instance Data.CopyInitializer  m (ComponentSetA alloc tag ())
       => Data.CopyInitializer1 m (ComponentSetA alloc tag) where

@@ -19,7 +19,6 @@ import qualified Foreign.Marshal.Utils            as Mem
 import qualified Foreign.Storable                 as StdStorable
 import qualified Foreign.Storable.Class           as Storable
 import qualified Memory                           as Memory
-import qualified Type.Data.Maybe                  as Type
 import qualified Type.Known                       as Type
 
 import Data.Storable          (type (-::), UnmanagedStruct)
@@ -185,14 +184,14 @@ instance (MonadIO m, Storable.StaticPeek View m a)
       => ToList m (SmallVectorA alloc n a) where
     toList = \a -> do
         len <- size a
-        mapM (unsafeRead a) [0 .. len - 1]
+        traverse (unsafeRead a) [0 .. len - 1]
     {-# INLINE toList #-}
 
 instance (Monad m, New m (SmallVectorA alloc n a), PushBack m (SmallVectorA alloc n a))
       => FromList m (SmallVectorA alloc n a) where
     fromList = \lst -> do
         a <- new
-        mapM_ (pushBack a) lst
+        traverse_ (pushBack a) lst
         pure a
     {-# INLINE fromList #-}
 
@@ -259,6 +258,13 @@ instance
         Struct.writeField _length a $! siz - 1
     {-# INLINE removeAt #-}
 
+instance (MonadIO m, IxMap m (SmallVectorA alloc n a))
+      => Map m (SmallVectorA alloc n a) where
+    mapM = \a f -> do
+        siz <- size a
+        let go i = if i == siz then pure () else unsafeMapAtM_ a i f >> go (i + 1)
+        go 0
+    {-# INLINE mapM #-}
 
 
 -- === Memory management instances === --
@@ -273,7 +279,6 @@ instance (MonadIO m, Storable.KnownConstantSize (SmallVectorA alloc n a), Show (
     poke = \ptr a ->
         let size = Storable.constantSize @(SmallVectorA alloc n a)
         in  liftIO $ Mem.copyBytes ptr (coerce a) size
-
     {-# INLINE poke #-}
 
 instance MonadIO m => Data.ShallowDestructor1 m (SmallVectorA alloc n) where
@@ -284,8 +289,7 @@ instance
     ( MonadIO m
     , Storable.KnownConstantSize a
     , Memory.UnmanagedAllocation alloc a m
-    , alloc ~ Type.FromMaybe valloc malloc
-    ) => Data.CopyInitializerA malloc m (SmallVectorA valloc n a) where
+    ) => Data.CopyInitializer m (SmallVectorA alloc n a) where
     copyInitialize = \a -> whenM_ (usesDynamicMemory a) $ do
         cap       <- capacity a
         elemCount <- size     a

@@ -32,6 +32,8 @@ class Remove       m a where remove      :: a -> Item a -> m ()
 class InsertAt     m a where insertAt    :: a -> Int -> Item a -> m ()
 class RemoveAt     m a where removeAt    :: a -> Int -> m ()
 
+class Map m a where mapM :: a -> (Item a -> m (Item a)) -> m ()
+
 
 -- === Conversions === --
 
@@ -49,15 +51,23 @@ unsafeWriteFromList = \a -> zipWithM_ (unsafeWrite a) [0..]
 {-# INLINE unsafeWriteFromList #-}
 
 
-type Map m a = (Read m a, Write m a, Monad m)
+type IxMap m a = (Read m a, Write m a, Monad m)
 
-unsafeMapM_ :: Map m a => a -> Int -> (Item a -> m (Item a)) -> m ()
-unsafeMapM_ = \a ix f -> unsafeWrite a ix =<< f =<< unsafeRead a ix
-{-# INLINE unsafeMapM_ #-}
+unsafeMapAtM :: IxMap m a => a -> Int -> (Item a -> m (t, Item a)) -> m t
+unsafeMapAtM = \a ix f -> do
+    el <- unsafeRead a ix
+    (!t, !el') <- f el
+    unsafeWrite a ix el'
+    pure t
+{-# INLINE unsafeMapAtM #-}
 
-unsafeMap_ :: Map m a => a -> Int -> (Item a -> Item a) -> m ()
-unsafeMap_ = \a ix f -> unsafeMapM_ a ix (pure . f)
-{-# INLINE unsafeMap_ #-}
+unsafeMapAtM_ :: IxMap m a => a -> Int -> (Item a -> m (Item a)) -> m ()
+unsafeMapAtM_ = \a ix f -> unsafeWrite a ix =<< f =<< unsafeRead a ix
+{-# INLINE unsafeMapAtM_ #-}
+
+unsafeMapAt_ :: IxMap m a => a -> Int -> (Item a -> Item a) -> m ()
+unsafeMapAt_ = \a ix f -> unsafeMapAtM_ a ix (pure . f)
+{-# INLINE unsafeMapAt_ #-}
 
 
 

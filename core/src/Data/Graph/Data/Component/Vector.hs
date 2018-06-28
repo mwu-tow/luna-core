@@ -31,11 +31,13 @@ import Foreign.Storable                      (Storable)
 type    ComponentVector = ComponentVectorA Memory.StdAllocator
 newtype ComponentVectorA alloc comp layout
     = ComponentVector (ComponentVector__ alloc comp layout)
-    deriving (Eq, Show, Storable) -- Storable, DynamicStorable)
+    deriving (Eq, Show, Storable, Map m) -- Storable, DynamicStorable)
 -- Storable1.derive ''ComponentVector
 
 type ComponentVector__ alloc comp layout
    = SmallVectorA alloc 0 (Component comp layout)
+
+type instance Item (ComponentVectorA _ comp layout) = Component comp layout
 
 makeLenses       ''ComponentVectorA
 
@@ -62,7 +64,6 @@ instance Data.CopyInitializer  m (ComponentVectorA alloc tag ())
     {-# INLINE copyInitialize1 #-}
 
 
-type instance Item (ComponentVectorA _ comp layout) = Component comp layout
 
 instance (FromList m (ComponentVector__ alloc comp layout), Functor m)
       => FromList m (ComponentVectorA alloc comp layout) where

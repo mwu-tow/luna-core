@@ -4,7 +4,7 @@ module Data.Mutable.Storable.SmallSet
     (module Data.Mutable.Storable.SmallSet, module X) where
 import Data.Mutable.Class as X
 
-import Prologue hiding (FromList, Read, ToList, fromList, length, toList,
+import Prologue hiding (FromList, Read, ToList, fromList, length, mapM, toList,
                  unsafeRead)
 
 import qualified Data.Construction                     as Data
@@ -138,6 +138,10 @@ instance ToList m (SmallSet__ alloc n a)
     toList = toList . unwrap
     {-# INLINE toList #-}
 
+instance Map m (SmallSet__ alloc n a)
+      => Map m (SmallSetA alloc n a) where
+    mapM = \a f -> mapM (unwrap a) f
+    {-# INLINE mapM #-}
 
 
 -- === Debug Instances === --

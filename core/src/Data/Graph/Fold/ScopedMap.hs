@@ -1,7 +1,8 @@
 -- {-# LANGUAGE Strict               #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module Data.Graph.Fold.ScopedMap where
+module Data.Graph.Fold.ScopedMap (module Data.Graph.Fold.ScopedMap, module X) where
+import Data.Graph.Fold.Scoped as X (LayerScope, Scope (..))
 
 import Prologue hiding (Traversable, fold, fold1, traverse)
 
@@ -41,13 +42,6 @@ import qualified Type.Show as Type
 
 -- === Scope === --
 
-data Scope
-    = All
-    | Whitelist [Type]
-    | Blacklist [Type]
-
-type family LayerScope t :: Scope
-
 type        EnabledLayer   t layer = EnabledLayer__ (LayerScope t) layer
 type family EnabledLayer__ t layer where
     EnabledLayer__ 'All             _ = 'True
@@ -57,9 +51,9 @@ type family EnabledLayer__ t layer where
 
 -- === Definition === --
 
-data Scoped t
-type instance Fold.Result (Scoped t) = Fold.Result t
-type instance LayerScope  (Scoped t) = LayerScope  t
+data ScopedMap t
+type instance Fold.Result (ScopedMap t) = Fold.Result t
+type instance LayerScope  (ScopedMap t) = LayerScope  t
 
 class Monad m => LayerMap t m layer where
     mapLayer :: ∀ layout.
@@ -67,10 +61,10 @@ class Monad m => LayerMap t m layer where
         -> m (Fold.Result t)
         -> m (Layer.Cons layer layout, Fold.Result t)
 
-class Monad m => ComponentBuilder t m comp where
-    componentBuild :: ∀ layout. Component comp layout -> m (Fold.Result t) -> m (Fold.Result t)
-    componentBuild = \_ -> id
-    {-# INLINE componentBuild #-}
+class Monad m => ComponentMap t m comp where
+    componentMap :: ∀ layout. Component comp layout -> m (Fold.Result t) -> m (Fold.Result t)
+    componentMap = \_ -> id
+    {-# INLINE componentMap #-}
 
 
 -- === Defaults === --
@@ -85,48 +79,48 @@ class Monad m => ComponentBuilder t m comp where
 
 instance {-# OVERLAPPABLE #-}
          ( layers ~ Graph.ComponentLayersM m comp
-         , ComponentBuilder t m comp
+         , ComponentMap t m comp
          , LayersFoldableBuilder__ t layers m )
-      => Fold.Builder (Scoped t) m (Component comp layout) where
-    build = Fold.build1 @(Scoped t)
+      => Fold.Builder (ScopedMap t) m (Component comp layout) where
+    build = Fold.build1 @(ScopedMap t)
     {-# INLINE build #-}
 
 instance {-# OVERLAPPABLE #-}
          ( layers ~ Graph.ComponentLayersM m comp
-         , ComponentBuilder t m comp
+         , ComponentMap t m comp
          , LayersFoldableBuilder__ t layers m )
-      => Fold.Builder1 (Scoped t) m (Component comp) where
-    build1 = \comp mr -> componentBuild @t comp
+      => Fold.Builder1 (ScopedMap t) m (Component comp) where
+    build1 = \comp mr -> componentMap @t comp
         $! buildLayersFold__ @t @layers (Component.unsafeToPtr comp) mr
     {-# INLINE build1 #-}
 
--- FIXME WD: the below instance is generic. We can use 't' instead of 'Scoped t'
+-- FIXME WD: the below instance is generic. We can use 't' instead of 'ScopedMap t'
 --           but it will overlap then. We need to think for better generalization of it here.
 instance {-# OVERLAPPABLE #-}
-    (MonadIO m, Fold.Builder1 (Scoped t) m (Component comp))
-      => Fold.Builder1 (Scoped t) m (ComponentVectorA alloc comp) where
+    (MonadIO m, Fold.Builder1 (ScopedMap t) m (Component comp))
+      => Fold.Builder1 (ScopedMap t) m (ComponentVectorA alloc comp) where
     build1 = \comp mr -> do
         lst <- Mutable.toList comp
-        let f = foldl' (\f a -> f . Fold.build1 @(Scoped t) a) id lst
+        let f = foldl' (\f a -> f . Fold.build1 @(ScopedMap t) a) id lst
         f mr
     {-# INLINE build1 #-}
 
 instance {-# OVERLAPPABLE #-}
-    (MonadIO m, Fold.Builder1 (Scoped t) m (Component comp))
-      => Fold.Builder1 (Scoped t) m (ComponentSet comp) where
+    (MonadIO m, Fold.Builder1 (ScopedMap t) m (Component comp))
+      => Fold.Builder1 (ScopedMap t) m (ComponentSet comp) where
     build1 = \comp mr -> do
         lst <- Mutable.toList comp
-        let f = foldl' (\f a -> f . Fold.build1 @(Scoped t) a) id lst
+        let f = foldl' (\f a -> f . Fold.build1 @(ScopedMap t) a) id lst
         f mr
     {-# INLINE build1 #-}
 
 instance {-# OVERLAPPABLE #-}
-    (Monad m, Fold.Builder1 (Fold.Struct (Scoped t)) m a)
-      => Fold.Builder1 (Scoped t) m a where
-    build1 = Fold.build1 @(Fold.Struct (Scoped t)) ; {-# INLINE build1 #-}
+    (Monad m, Fold.Builder1 (Fold.Struct (ScopedMap t)) m a)
+      => Fold.Builder1 (ScopedMap t) m a where
+    build1 = Fold.build1 @(Fold.Struct (ScopedMap t)) ; {-# INLINE build1 #-}
 
-instance Monad m => Fold.Builder (Scoped t) m (Vector a)
-instance Monad m => Fold.Builder (Scoped t) m (SmallVector n a)
+instance Monad m => Fold.Builder (ScopedMap t) m (Vector a)
+instance Monad m => Fold.Builder (ScopedMap t) m (SmallVector n a)
 
 
 

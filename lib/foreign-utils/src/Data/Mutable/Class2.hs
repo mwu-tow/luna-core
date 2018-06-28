@@ -9,9 +9,9 @@ import qualified Memory.Data.Ptr        as Memory
 import qualified Type.Known             as Type
 
 
------------------------------
--- === CopyInitializer === --
------------------------------
+--------------------------
+-- === Construction === --
+--------------------------
 
 class Constructor m a where
     type family Args a
