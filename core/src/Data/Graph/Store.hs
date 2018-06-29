@@ -76,8 +76,10 @@ type Serializer comp m =
     , Buffer.StaticRegionEncoder (Graph.ComponentsM m) m
     , Buffer.ComponentStaticInitializer m
     , Buffer.ComponentStaticRedirection (Graph.ComponentsM m) m
+    , Buffer.ComponentUnswizzle__ (Graph.ComponentsM m) m
 
     , Show (Partition.ClustersM m)
+
     -- , Alloc.Allocator comps m
     -- , Serialize.ClusterSerializer comps m
     )
@@ -115,6 +117,8 @@ serialize comp = do
     putStrLn "\n=== pointerRedirection ==="
     Buffer.redirectComponents @(Graph.ComponentsM m) redirectMap ccount dataRegion
 
+    putStrLn "\n=== pointer unswizzling ==="
+    Buffer.unswizzleComponents__ @(Graph.ComponentsM m) ccount dataRegion
     -- memRegion <- Alloc.alloc @comps clusters
     pure ()
     -- serInfo   <- Serialize.serializeClusters @comps clusters memRegion

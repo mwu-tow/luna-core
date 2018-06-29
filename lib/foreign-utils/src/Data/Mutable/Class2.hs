@@ -20,3 +20,30 @@ class Constructor m a where
 class CopyConstructor m a where
     -- | self -> ref -> action
     copyConstruct :: a -> a -> m ()
+
+
+class Swizzle m a where
+    swizzle :: a -> m ()
+
+class Unswizzle m a where
+    unswizzle :: a -> m ()
+
+class Swizzle1 m a where
+    swizzle1 :: a t1 -> m ()
+
+class Unswizzle1 m a where
+    unswizzle1 :: a t1 -> m ()
+
+
+class SwizzleP m a where
+    swizzleP :: a -> m a
+
+class UnswizzleP m a where
+    unswizzleP :: a -> m a
+
+
+class SwizzleP1 m a where
+    swizzleP1 :: a t1 -> m (a t1)
+
+class UnswizzleP1 m a where
+    unswizzleP1 :: a t1 -> m (a t1)

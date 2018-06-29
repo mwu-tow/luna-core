@@ -8,6 +8,7 @@ import Prologue hiding (FromList, Read, ToList, fromList, length, mapM, toList,
                  unsafeRead)
 
 import qualified Data.Construction                     as Data
+import qualified Data.Mutable.Class2                   as Mutable
 import qualified Data.Mutable.Plain                    as Data
 import qualified Data.Mutable.Storable.SmallAutoVector as SmallVector
 import qualified Data.Storable                         as Struct
@@ -80,6 +81,9 @@ lookupAndApp__ ffound fmissing s a = go where
 
 deriving instance Data.CopyInitializer m (SmallSet__ alloc n a)
                => Data.CopyInitializer m (SmallSetA alloc n a)
+
+deriving instance Mutable.Unswizzle m (SmallSet__ alloc n a)
+               => Mutable.Unswizzle m (SmallSetA alloc n a)
 
 instance Storable.KnownConstantSize (SmallSet__ alloc n a)
       => Storable.KnownConstantSize (SmallSetA alloc n a) where

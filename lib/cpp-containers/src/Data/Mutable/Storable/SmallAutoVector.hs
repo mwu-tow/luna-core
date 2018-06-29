@@ -11,6 +11,7 @@ import qualified Data.AutoVector.Mutable.Storable as Vector
 import qualified Data.Construction                as Data
 import qualified Data.Convert2.Class              as Convert
 import qualified Data.List                        as List
+import qualified Data.Mutable.Class2              as Mutable
 import qualified Data.Mutable.Plain               as Data
 import qualified Data.Property                    as Property
 import qualified Data.Storable                    as Struct
@@ -265,6 +266,21 @@ instance (MonadIO m, IxMap m (SmallVectorA alloc n a))
         let go i = if i == siz then pure () else unsafeMapAtM_ a i f >> go (i + 1)
         go 0
     {-# INLINE mapM #-}
+
+
+newtype Field a = Field (Memory.UnmanagedPtr a)
+
+instance (Storable.KnownConstantSize a, Mutable.Unswizzle m (Field a), MonadIO m)
+      => Mutable.Unswizzle m (SmallVectorA alloc n a) where
+    unswizzle = \a -> do
+        ptr0 <- elemsPtr a
+        siz  <- size a
+        let elemSize = Storable.constantSize @a
+            go i ptr = if i == siz then pure () else do
+                Mutable.unswizzle (Field @a $ wrap ptr)
+                go (i - 1) $! ptr `plusPtr` elemSize
+        go 0 ptr0
+    {-# INLINE unswizzle #-}
 
 
 -- === Memory management instances === --

@@ -4,26 +4,29 @@ module Data.Graph.Store.Buffer where
 
 import Prologue hiding (Data)
 
-import qualified Control.Monad.State.Layered     as State
-import qualified Data.ByteString.Internal        as ByteString
-import qualified Data.Convert2                   as Convert
-import qualified Data.Convert2                   as Convert
-import qualified Data.Graph.Data.Component.Class as Component
-import qualified Data.Graph.Data.Component.List  as ComponentList
-import qualified Data.Graph.Data.Component.List  as ComponentList
-import qualified Data.Graph.Data.Graph.Class     as Graph
-import qualified Data.Graph.Data.Layer.Class     as Layer
-import qualified Data.Graph.Fold.Partition       as Partition
-import qualified Data.Graph.Store.Size.Class     as Size
-import qualified Data.Map.Strict                 as Map
-import qualified Data.Mutable.Class              as Mutable
-import qualified Data.Mutable.Plain              as Data
-import qualified Data.Mutable.Storable.Array     as Array
-import qualified Data.Storable                   as Struct
-import qualified Foreign.ForeignPtr              as ForeignPtr
-import qualified Foreign.Storable.Class          as Storable
-import qualified Memory                          as Memory
-import qualified Type.Data.List                  as List
+import qualified Control.Monad.State.Layered           as State
+import qualified Data.ByteString.Internal              as ByteString
+import qualified Data.Convert2                         as Convert
+import qualified Data.Convert2                         as Convert
+import qualified Data.Graph.Data.Component.Class       as Component
+import qualified Data.Graph.Data.Component.List        as ComponentList
+import qualified Data.Graph.Data.Component.List        as ComponentList
+import qualified Data.Graph.Data.Graph.Class           as Graph
+import qualified Data.Graph.Data.Layer.Class           as Layer
+import qualified Data.Graph.Fold.Partition             as Partition
+import qualified Data.Graph.Store.Size.Class           as Size
+import qualified Data.Map.Strict                       as Map
+import qualified Data.Mutable.Class                    as Mutable
+import qualified Data.Mutable.Class2                   as Mutable
+import qualified Data.Mutable.Plain                    as Data
+import qualified Data.Mutable.Storable.Array           as Array
+import qualified Data.Mutable.Storable.SmallAutoVector as SAV
+import qualified Data.Storable                         as Struct
+import qualified Foreign.ForeignPtr                    as ForeignPtr
+import qualified Foreign.Storable                      as StdStorable
+import qualified Foreign.Storable.Class                as Storable
+import qualified Memory                                as Memory
+import qualified Type.Data.List                        as List
 
 import qualified Data.Graph.Fold.Class     as Fold
 import qualified Data.Graph.Fold.Filter    as Fold
@@ -43,6 +46,7 @@ import Data.Storable                         (type (-::), ManagedStruct)
 import Foreign.ForeignPtr                    (touchForeignPtr)
 import Foreign.ForeignPtr.Unsafe             (unsafeForeignPtrToPtr)
 import Foreign.ForeignPtr.Utils              (SomeForeignPtr)
+import Foreign.Ptr                           (minusPtr, plusPtr)
 import Foreign.Ptr.Utils                     (SomePtr)
 import Type.Data.Semigroup                   (type (<>))
 
@@ -356,15 +360,131 @@ instance Applicative m => PointerRedirection m Word32
 instance Applicative m => PointerRedirection m Word64
 instance Applicative m => PointerRedirection m Bool
 
--- instance MonadIO m
---       => PointerRedirection m (ComponentSetA alloc tag layout) where
---     redirectPointers = \a f -> Mutable.mapM a $ \comp
---         -> pure $ Component.unsafeFromPtr $ unwrap $ f (wrap $ Component.unsafeToPtr comp)
---     {-# INLINE redirectPointers #-}
+
+
+
+
+-------------------------------
+-- === Pointer swizzling === --
+-------------------------------
+
+
+-- type ComponentStaticRedirection comps m
+--     = ( ComponentUnswizzle__ comps (State.StateT RedirectMap m)
+--       , Monad m
+--       )
+-- redirectComponents :: ∀ comps m. ComponentStaticRedirection comps m
+--     => RedirectMap -> [Int] -> BufferDataRegion -> m ()
+-- redirectComponents = \m ccount region -> flip (State.evalT @RedirectMap) m
+--     $ unswizzleComponents__ @comps ccount region
+
+
+class ComponentUnswizzle__ (comps :: [Type]) m where
+    unswizzleComponents__ :: [Int] -> BufferDataRegion -> m ()
+
+instance Applicative m
+      => ComponentUnswizzle__ '[] m where
+    unswizzleComponents__ = \_ _ -> pure ()
+    {-# INLINE unswizzleComponents__ #-}
+
+instance
+    ( layers ~ Graph.ComponentLayersM m comp
+    , Layer.KnownByteSize layers
+    , ComponentUnswizzlingFold m comp
+    , ComponentUnswizzle__ comps m
+    , MonadIO m
+    -- debug:
+    , Type.Show comp
+    )
+      => ComponentUnswizzle__ (comp ': comps) m where
+    unswizzleComponents__ = \(compCount : compCounts) region -> do
+        let compSize   = Layer.byteSize @layers
+            regionPtr  = unwrap region
+            regionPtr' = wrap $ regionPtr `Memory.plus` (compSize * compCount)
+        putStrLn $ "unswizzleComponents for " <> Type.show @comp <> " (" <> show compCount <> ")"
+        flip mapM_ [0 .. compCount - 1] $ \ix -> do
+            putStrLn $ ">> " <> show ix <> " (" <> show region <> ")"
+            let ptr  = regionPtr `Memory.plus` (ix * compSize)
+            Memory.withUnmanagedPtr ptr $ \uptr ->
+                let comp = Component.unsafeFromPtr @comp (unwrap uptr)
+                in  foldUnswizzleComponents comp
+
+        unswizzleComponents__ @comps compCounts regionPtr'
+
+data ComponentUnswizzling
+type instance Fold.Result     ComponentUnswizzling = ()
+type instance Fold.LayerScope ComponentUnswizzling = 'Fold.All
+
+instance Monad m => Fold.ComponentMap ComponentUnswizzling m comp
+
+instance (MonadIO m, Mutable.UnswizzleP1 m (Layer.Cons layer))
+      => Fold.LayerMap ComponentUnswizzling m layer where
+        mapLayer = \a _ -> (,()) <$> Mutable.unswizzleP1 a
+
+            -- Fold.build1 @ComponentUnswizzling
+
+instance MonadIO m
+      => Mutable.UnswizzleP1 m (ComponentSetA alloc tag) where
+    unswizzleP1 = \a -> a <$ Mutable.unswizzle1 a
+
+
+type ComponentUnswizzlingFold m comp
+   = Fold.Builder1 (Fold.ScopedMap ComponentUnswizzling) m (Component comp)
+
+foldUnswizzleComponents :: ComponentUnswizzlingFold m comp => Component comp layout -> m ()
+foldUnswizzleComponents = \comp -> Fold.build1 @(Fold.ScopedMap ComponentUnswizzling) comp (pure ())
+
+-- class PointerRedirection1 m a where
+--     redirectPointers1 :: (Memory.SomeUnmanagedPtr -> m Memory.SomeUnmanagedPtr)
+--                       -> a t1 -> m (a t1)
+
+-- class PointerRedirection m a where
+--     redirectPointers :: (Memory.SomeUnmanagedPtr -> m Memory.SomeUnmanagedPtr)
+--                      -> a -> m a
+
+--     default redirectPointers :: Applicative m => (Memory.SomeUnmanagedPtr -> m Memory.SomeUnmanagedPtr) -> a -> m a
+--     redirectPointers = \_ -> pure
 
 -- instance MonadIO m
---       => Fold.Builder1 ComponentRedirection m (ComponentSetA alloc tag) where
---     build1 = \a x -> x <* redirectPointers a undefined
+--       => PointerRedirection1 m (ComponentSetA alloc tag) where
+--     redirectPointers1 = \f a -> do
+--         print ">> redirection ComponentSetA"
+--         out <- a <$ Mutable.mapM a (redirectPointers1 f)
+--         print ">> redirection ComponentSetA"
+--         pure out
+--     {-# INLINE redirectPointers1 #-}
+
+-- instance Applicative m => PointerRedirection1 m (Component comp) where
+--     redirectPointers1 = \f a -> Component.unsafeFromPtr
+--         . unwrap <$> f (wrap $ Component.unsafeToPtr a)
+
+
+-- instance MonadIO m => PointerRedirection m (ComponentVectorA alloc tag layout) where
+--     redirectPointers = \f a -> do
+--         print ">> redirection ComponentVectorA"
+--         out <- a <$ Mutable.mapM a (redirectPointers1 f)
+--         print "<< redirection ComponentVectorA"
+--         pure out
+--     {-# INLINE redirectPointers #-}
+
+-- instance Applicative m => PointerRedirection m (Component comp layout) where
+--     redirectPointers = redirectPointers1
+
+-- instance Applicative m => PointerRedirection m Word8
+-- instance Applicative m => PointerRedirection m Word16
+-- instance Applicative m => PointerRedirection m Word32
+-- instance Applicative m => PointerRedirection m Word64
+-- instance Applicative m => PointerRedirection m Bool
+
+
+
+instance MonadIO m
+      => Mutable.Unswizzle m (SAV.Field (Component tag layout)) where
+    unswizzle = \(SAV.Field ptr) -> do
+        comp <- liftIO $ StdStorable.peek (unwrap ptr) -- fiix storable class ptr handling
+        let compPtr = Component.unsafeToPtr comp
+        liftIO $ StdStorable.poke (coerce $ unwrap ptr) (compPtr `minusPtr` (unwrap ptr))
+
 
 
 

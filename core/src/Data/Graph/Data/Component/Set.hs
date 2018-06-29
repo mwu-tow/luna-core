@@ -8,6 +8,7 @@ import Data.Mutable.Class as X
 import Prologue hiding (FromList, ToList, fromList, toList)
 
 import qualified Data.Construction          as Data
+import qualified Data.Mutable.Class2        as Mutable
 import qualified Data.Mutable.Plain         as Data
 import qualified Data.Property              as Property
 import qualified Foreign.Storable.Class     as Storable
@@ -44,10 +45,18 @@ deriving instance Data.CopyInitializer m (ComponentSet__ alloc tag layout)
                => Data.CopyInitializer m (ComponentSetA  alloc tag layout)
 
 
+deriving instance Mutable.Unswizzle m (ComponentSet__ alloc tag layout)
+               => Mutable.Unswizzle m (ComponentSetA  alloc tag layout)
+
 instance Data.CopyInitializer  m (ComponentSetA alloc tag ())
       => Data.CopyInitializer1 m (ComponentSetA alloc tag) where
     copyInitialize1 = \a -> Data.copyInitialize (coerce a :: ComponentSetA alloc tag ())
     {-# INLINE copyInitialize1 #-}
+
+instance Mutable.Unswizzle  m (ComponentSetA alloc tag ())
+      => Mutable.Unswizzle1 m (ComponentSetA alloc tag) where
+    unswizzle1 = \a -> Mutable.unswizzle (coerce a :: ComponentSetA alloc tag ())
+    {-# INLINE unswizzle1 #-}
 
 -- type instance Property.Get Storable.Dynamics (ComponentSet _) = Storable.Dynamic
 
