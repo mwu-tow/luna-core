@@ -17,7 +17,7 @@ import qualified Foreign.Storable.Class                as Storable
 import qualified Memory                                as Memory
 import qualified Type.Known                            as Type
 
-import Data.Mutable.Storable.SmallAutoVector (MemChunk, SmallVectorA)
+import Data.Mutable.Storable.SmallAutoVector (MemChunk, UnmanagedSmallVectorA)
 import Foreign.Storable.Class                (Copy, Storable, View)
 import System.IO.Unsafe                      (unsafeDupablePerformIO)
 
@@ -33,7 +33,7 @@ type    SmallSet = SmallSetA Memory.StdAllocator
 newtype SmallSetA (alloc :: Memory.Allocator) (n :: Nat) a
       = SmallSet (SmallSet__ alloc n a)
     deriving (Eq, Ord, NFData, Free m)
-type SmallSet__ = SmallVectorA
+type SmallSet__ = UnmanagedSmallVectorA
 makeLenses ''SmallSetA
 
 type instance Item (SmallSetA alloc n a) = a
@@ -97,7 +97,7 @@ instance Storable.KnownSize t m (SmallSet__ alloc n a)
 
 instance (PlacementNew m (SmallSet__ alloc n a), Functor m)
       => PlacementNew m (SmallSetA alloc n a) where
-    placementNew = fmap wrap . placementNew . coerce
+    placementNew = fmap wrap . placementNew . Memory.coercePtr
     {-# INLINE placementNew #-}
 
 instance (New m (SmallSet__ alloc n a), Functor m)

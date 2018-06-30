@@ -18,7 +18,7 @@ import OCI.IR.Term.Class            (Terms)
 import OCI.IR.Term.Definition       (LinksTo)
 
 -- FIXME: Storable.derive doesnt support Nat literals
-type V16 = SmallVector.SmallVector 16
+type V16 = SmallVector.UnmanagedSmallVector 16
 
 
 --------------------

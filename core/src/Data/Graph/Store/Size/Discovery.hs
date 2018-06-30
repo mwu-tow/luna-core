@@ -27,7 +27,7 @@ import Data.Graph.Data.Component.List        (ComponentList, ComponentLists)
 import Data.Graph.Data.Component.Set         (ComponentSet)
 import Data.Graph.Data.Component.Vector      (ComponentVector)
 import Data.Graph.Store.Size.Class           (DynamicSize, Size (Size))
-import Data.Mutable.Storable.SmallAutoVector (SmallVector)
+import Data.Mutable.Storable.SmallAutoVector (SmallVectorA)
 import Data.PtrSet.Mutable                   (IsPtr, UnmanagedPtrSet)
 import Data.Vector.Storable.Foreign          (Vector)
 import Foreign.DynamicStorable               (DynamicStorable)
@@ -114,8 +114,8 @@ instance MonadIO m
         (Size.ptrRegion %~ (+size)) <$> mi
     {-# INLINE build1 #-}
 
-instance (MonadIO m, Storable.KnownDynamicSize m (SmallVector n a))
-      => Fold.Builder Discovery m (SmallVector n a) where
+instance (MonadIO m, Storable.KnownDynamicSize m (SmallVectorA t alloc n a))
+      => Fold.Builder Discovery m (SmallVectorA t alloc n a) where
     build = \a mi -> do
         size <- Storable.dynamicSize a
         (Size.dataRegion %~ (+size)) <$> mi

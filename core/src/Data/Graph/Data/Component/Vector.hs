@@ -18,7 +18,8 @@ import qualified Foreign.Storable.Class       as Storable
 import qualified Foreign.Storable1.Deriving   as Storable1
 import qualified Memory                       as Memory
 
-import Data.Mutable.Storable.SmallAutoVector (SmallVector, SmallVectorA)
+import Data.Mutable.Storable.SmallAutoVector (SmallVector,
+                                              UnmanagedSmallVectorA)
 import Foreign.DynamicStorable               (DynamicStorable)
 import Foreign.Storable                      (Storable)
 
@@ -36,7 +37,7 @@ newtype ComponentVectorA alloc comp layout
 -- Storable1.derive ''ComponentVector
 
 type ComponentVector__ alloc comp layout
-   = SmallVectorA alloc 0 (Component comp layout)
+   = UnmanagedSmallVectorA alloc 0 (Component comp layout)
 
 type instance Item (ComponentVectorA _ comp layout) = Component comp layout
 

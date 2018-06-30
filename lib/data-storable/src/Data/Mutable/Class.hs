@@ -2,6 +2,8 @@ module Data.Mutable.Class where
 
 import Prologue hiding (Read, unsafeRead)
 
+import qualified Memory as Memory
+
 import Foreign.Ptr (Ptr)
 
 
@@ -9,7 +11,7 @@ import Foreign.Ptr (Ptr)
 -- === Memory management === --
 
 class New          m a where new          :: m a
-class PlacementNew m a where placementNew :: Ptr a -> m a
+class PlacementNew m a where placementNew :: Memory.Ptr (Memory.Management a) a -> m a
 class Alloc        m a where alloc        :: Int -> m a
 class Free         m a where free         :: a -> m ()
 class Grow         m a where grow         :: a -> m ()

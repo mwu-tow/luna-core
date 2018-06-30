@@ -87,13 +87,13 @@ deriving instance Show (Memory.Ptr t a) => Show (UnknownSizeMemRegion t a)
 
 instance (Memory.PtrType t, Storable.Peek Storable.View m a, MonadIO m, Storable.KnownConstantSize a)
       => Mutable.Read m (UnknownSizeMemRegion t a) where
-    unsafeRead = \a ix -> Memory.withUnmanagedRawPtr (unwrap a)
+    unsafeRead = \a ix -> Memory.withUnmanagedPtr (unwrap a)
         $ \p -> Storable.peekElemOff @Storable.View p ix
     {-# INLINE unsafeRead #-}
 
 instance (Memory.PtrType t, Storable.Poke Storable.View m a, MonadIO m, Storable.KnownConstantSize a)
       => Mutable.Write m (UnknownSizeMemRegion t a) where
-    unsafeWrite = \a ix v -> Memory.withUnmanagedRawPtr (unwrap a)
+    unsafeWrite = \a ix v -> Memory.withUnmanagedPtr (unwrap a)
         $ \p -> Storable.pokeElemOff @Storable.View p ix v
     {-# INLINE unsafeWrite #-}
 
@@ -176,8 +176,8 @@ instance (Data.CopyInitializer1 m (ComponentVectorA StoreDynAllocator comp), Mon
     build1 = \a x -> x <* Data.copyInitialize1 (Memory.setAllocator @StoreDynAllocator a)
     {-# INLINE build1 #-}
 
-instance (Data.CopyInitializer m (SmallVectorA StoreDynAllocator comp a), Monad m)
-      => Fold.Builder CopyInitialization m (SmallVectorA alloc comp a) where
+instance (Data.CopyInitializer m (SmallVectorA t StoreDynAllocator comp a), Monad m)
+      => Fold.Builder CopyInitialization m (SmallVectorA t alloc comp a) where
     build = \a x -> x <* Data.copyInitialize (Memory.setAllocator @StoreDynAllocator a)
     {-# INLINE build #-}
 
@@ -456,7 +456,7 @@ instance
 instance MonadIO m => Mutable.UnswizzleRelTo m (ComponentVectorA alloc tag layout) where
     unswizzleRelTo = \_ a -> a <$ Mutable.unswizzle1 a
 
-instance Applicative m => Mutable.UnswizzleRelTo m (SmallVectorA alloc n IR.Name) where
+instance Applicative m => Mutable.UnswizzleRelTo m (SmallVectorA t alloc n IR.Name) where
     unswizzleRelTo = \_ a -> pure a
 
 instance Applicative m => Mutable.UnswizzleRelTo m (Component comp layout) where
@@ -464,12 +464,12 @@ instance Applicative m => Mutable.UnswizzleRelTo m (Component comp layout) where
         let compPtr = Component.unsafeToPtr comp
         pure $ Component.unsafeFromPtr (unsafeCoerce $ compPtr `minusPtr` ptr)
 
-instance Applicative m => Mutable.UnswizzleRelTo m (SmallVectorA alloc n Char)   where unswizzleRelTo = \_ a -> pure a
-instance Applicative m => Mutable.UnswizzleRelTo m (SmallVectorA alloc n Int)    where unswizzleRelTo = \_ a -> pure a
-instance Applicative m => Mutable.UnswizzleRelTo m (SmallVectorA alloc n Word8)  where unswizzleRelTo = \_ a -> pure a
-instance Applicative m => Mutable.UnswizzleRelTo m (SmallVectorA alloc n Word16) where unswizzleRelTo = \_ a -> pure a
-instance Applicative m => Mutable.UnswizzleRelTo m (SmallVectorA alloc n Word32) where unswizzleRelTo = \_ a -> pure a
-instance Applicative m => Mutable.UnswizzleRelTo m (SmallVectorA alloc n Word64) where unswizzleRelTo = \_ a -> pure a
+instance Applicative m => Mutable.UnswizzleRelTo m (SmallVectorA t alloc n Char)   where unswizzleRelTo = \_ a -> pure a
+instance Applicative m => Mutable.UnswizzleRelTo m (SmallVectorA t alloc n Int)    where unswizzleRelTo = \_ a -> pure a
+instance Applicative m => Mutable.UnswizzleRelTo m (SmallVectorA t alloc n Word8)  where unswizzleRelTo = \_ a -> pure a
+instance Applicative m => Mutable.UnswizzleRelTo m (SmallVectorA t alloc n Word16) where unswizzleRelTo = \_ a -> pure a
+instance Applicative m => Mutable.UnswizzleRelTo m (SmallVectorA t alloc n Word32) where unswizzleRelTo = \_ a -> pure a
+instance Applicative m => Mutable.UnswizzleRelTo m (SmallVectorA t alloc n Word64) where unswizzleRelTo = \_ a -> pure a
 
 
 instance Applicative m => Mutable.UnswizzleRelTo m (Char)   where unswizzleRelTo = \_ a -> pure a

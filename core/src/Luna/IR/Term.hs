@@ -39,7 +39,7 @@ import Data.Generics.Traversable             (GTraversable)
 import Data.Graph.Data.Component.Class       (Component)
 import Data.Graph.Data.Component.Set         (ComponentSet)
 import Data.Graph.Data.Component.Vector      (ComponentVector)
-import Data.Mutable.Storable.SmallAutoVector (SmallVector)
+import Data.Mutable.Storable.SmallAutoVector (UnmanagedSmallVector)
 -- import Data.Graph.Store.External        (ExternalFieldStorable,
 --                                          ExternalStorable)
 import Data.Vector.Storable.Foreign (Vector)
@@ -88,9 +88,9 @@ instance
     , Fold.Builder1 t m (Component Link.Edges)
     , Fold.Builder1 t m (ComponentVector Link.Edges)
     , Fold.Builder1 t m (ComponentSet    Link.Edges)
-    , Fold.Builder  t m (SmallVector 16 Word8)
-    , Fold.Builder  t m (SmallVector 16 Char)
-    , Fold.Builder  t m (SmallVector 16 Name) -- x
+    , Fold.Builder  t m (UnmanagedSmallVector 16 Word8)
+    , Fold.Builder  t m (UnmanagedSmallVector 16 Char)
+    , Fold.Builder  t m (UnmanagedSmallVector 16 Name) -- x
     , Fold.Builder  t m (Term.List Name)
     ) => Fold.Builder1 (Fold.Struct t) m UniTerm where
     build1 = gbuildFold__ @t
@@ -140,8 +140,8 @@ instance Fold.Builder t m (Vector a)
     build = Fold.build @t
     {-# INLINE build #-}
 
-instance Fold.Builder t m (SmallVector n a)
-      => Fold.Builder (UniTermFold t) m (SmallVector n a) where
+instance Fold.Builder t m (UnmanagedSmallVector n a)
+      => Fold.Builder (UniTermFold t) m (UnmanagedSmallVector n a) where
     build = Fold.build @t
     {-# INLINE build #-}
 

@@ -8,7 +8,7 @@ import Prologue
 import qualified Data.Convert2.Class       as Convert
 import qualified Foreign.ForeignPtr        as Raw
 import qualified Foreign.ForeignPtr.Unsafe as Raw
-import qualified Foreign.Marshal.Alloc     as Mem
+import qualified Foreign.Marshal.Alloc     as Raw
 import qualified Foreign.Marshal.Utils     as Raw
 import qualified Foreign.Ptr               as Raw
 import qualified GHC.ForeignPtr            as Raw
@@ -54,28 +54,35 @@ coercePtr :: Ptr r a -> Ptr t b
 coercePtr = unsafeCoerce
 {-# INLINE coercePtr #-}
 
+toRawPtr :: Ptr t a -> PtrImpl t a
+toRawPtr = unwrap
+{-# INLINE toRawPtr #-}
+
 
 -- === Arithmetics === --
 
 class PtrType t where
-    plus             :: ∀ src tgt. Ptr t src -> Int -> Ptr t tgt
-    minus            :: ∀ src tgt. Ptr t tgt -> Ptr t src -> Int
-    nullPtr          :: ∀ a. Ptr t a
-    withUnmanagedPtr :: ∀ a b m. MonadIO m => Ptr t a -> (UnmanagedPtr a -> m b) -> m b
-    mallocBytesIO    :: ∀ a. Int -> IO (Ptr t a)
+    plus              :: ∀ src tgt. Ptr t src -> Int -> Ptr t tgt
+    minus             :: ∀ src tgt. Ptr t tgt -> Ptr t src -> Int
+    nullPtr           :: ∀ a. Ptr t a
+    unsafeToUnmanaged :: ∀ a. Ptr t a -> UnmanagedPtr a
+    withUnmanagedPtr  :: ∀ a b m. MonadIO m => Ptr t a -> (UnmanagedPtr a -> m b) -> m b
+    mallocBytesIO     :: ∀ a. Int -> IO (Ptr t a)
 
 
 instance PtrType 'Memory.Unmanaged where
-    plus             = \ptr -> wrap . Raw.plusPtr (unwrap ptr)
-    minus            = \tgt src -> Raw.minusPtr (unwrap tgt) (unwrap src)
-    nullPtr          = wrap Raw.nullPtr
+    plus              = \ptr -> wrap . Raw.plusPtr (unwrap ptr)
+    minus             = \tgt src -> Raw.minusPtr (unwrap tgt) (unwrap src)
+    nullPtr           = wrap Raw.nullPtr
     withUnmanagedPtr = flip ($)
-    mallocBytesIO    = fmap wrap . Mem.mallocBytes
-    {-# INLINE plus             #-}
-    {-# INLINE minus            #-}
-    {-# INLINE nullPtr          #-}
-    {-# INLINE withUnmanagedPtr #-}
-    {-# INLINE mallocBytesIO    #-}
+    unsafeToUnmanaged = id
+    mallocBytesIO     = fmap wrap . Raw.mallocBytes
+    {-# INLINE plus              #-}
+    {-# INLINE minus             #-}
+    {-# INLINE nullPtr           #-}
+    {-# INLINE unsafeToUnmanaged #-}
+    {-# INLINE withUnmanagedPtr  #-}
+    {-# INLINE mallocBytesIO     #-}
 
 instance PtrType 'Memory.Managed where
     plus = \ptr -> wrap . Raw.plusForeignPtr (unwrap ptr)
@@ -88,6 +95,9 @@ instance PtrType 'Memory.Managed where
 
     nullPtr = wrap (coerce __foreignNullPtr)
     {-# INLINE nullPtr #-}
+
+    unsafeToUnmanaged = wrap . Raw.unsafeForeignPtrToPtr . unwrap
+    {-# INLINE unsafeToUnmanaged #-}
 
     withUnmanagedPtr = \ptr f -> do
         let fptr = unwrap ptr
@@ -128,9 +138,17 @@ mallocBytes :: ∀ t m a. PtrType t => MonadIO m => Int -> m (Ptr t a)
 mallocBytes = liftIO . mallocBytesIO
 {-# INLINE mallocBytes #-}
 
+free :: MonadIO m => UnmanagedPtr a -> m ()
+free = liftIO . Raw.free . unwrap
+{-# INLINE free #-}
+
 __foreignNullPtr :: Raw.ForeignPtr ()
 __foreignNullPtr = unsafePerformIO $ Raw.newForeignPtr_ Raw.nullPtr
 {-# NOINLINE __foreignNullPtr #-}
+
+touchPtr :: MonadIO m => ManagedPtr a -> m ()
+touchPtr = liftIO . Raw.touchForeignPtr . unwrap
+{-# INLINE touchPtr #-}
 
 
 -- === Instances === --

@@ -10,6 +10,7 @@ module Foreign.Storable.Class where
 import Prologue
 
 import qualified Foreign.Storable as Storable
+import qualified Memory.Data.Ptr  as Memory
 import qualified Type.Known       as Type
 
 import Foreign.Ptr       (FunPtr, Ptr, plusPtr)
@@ -48,6 +49,10 @@ instance (KnownConstantSize a, KnownConstantSize as)
     constantSize = constantSize @a + constantSize @as
     {-# INLINE constantSize #-}
 
+
+instance KnownConstantSize (Memory.Ptr t a) where
+    constantSize = constantSize @(Ptr ())
+    {-# INLINE constantSize #-}
 
 -- type family ConstantSize (t :: Type) (a :: k) :: Nat
 
@@ -174,18 +179,20 @@ instance {-# OVERLAPPABLE #-} KnownSize2 t m a
 type Storable t m a = (Peek t m a, Poke t m a)
 
 class Peek (t :: Type) m a where
-    peek :: Ptr a -> m a
+    peek :: Memory.UnmanagedPtr a -> m a
 
-    default peek :: (Storable.Storable a, MonadIO m) => Ptr a -> m a
-    peek = liftIO . Storable.peek
+    default peek :: (Storable.Storable a, MonadIO m)
+                 => Memory.UnmanagedPtr a -> m a
+    peek = liftIO . Storable.peek . Memory.toRawPtr
     {-# INLINE peek #-}
 
 
 class Poke t m a where
-    poke :: Ptr a -> a -> m ()
+    poke :: Memory.UnmanagedPtr a -> a -> m ()
 
-    default poke :: (Storable.Storable a, MonadIO m) => Ptr a -> a -> m ()
-    poke = liftIO .: Storable.poke
+    default poke :: (Storable.Storable a, MonadIO m)
+                 => Memory.UnmanagedPtr a -> a -> m ()
+    poke = liftIO .: (Storable.poke . Memory.toRawPtr)
     {-# INLINE poke #-}
 
 
@@ -194,14 +201,14 @@ class Poke t m a where
 type StaticPeek t m a = (Peek t m a, KnownConstantSize a)
 type StaticPoke t m a = (Poke t m a, KnownConstantSize a)
 
-peekByteOff :: ∀ t m a. Peek t m a       => Ptr a -> Int -> m a
-pokeByteOff :: ∀ t m a. Poke t m a       => Ptr a -> Int -> a -> m ()
-peekElemOff :: ∀ t m a. StaticPeek t m a => Ptr a -> Int -> m a
-pokeElemOff :: ∀ t m a. StaticPoke t m a => Ptr a -> Int -> a -> m ()
+peekByteOff :: ∀ t m a. Peek t m a       => Memory.UnmanagedPtr a -> Int -> m a
+pokeByteOff :: ∀ t m a. Poke t m a       => Memory.UnmanagedPtr a -> Int -> a -> m ()
+peekElemOff :: ∀ t m a. StaticPeek t m a => Memory.UnmanagedPtr a -> Int -> m a
+pokeElemOff :: ∀ t m a. StaticPoke t m a => Memory.UnmanagedPtr a -> Int -> a -> m ()
 peekElemOff = \ptr i -> peekByteOff @t ptr (i * constantSize @a)
 pokeElemOff = \ptr i -> pokeByteOff @t ptr (i * constantSize @a)
-peekByteOff = peek @t .: plusPtr
-pokeByteOff = poke @t .: plusPtr
+peekByteOff = peek @t .: Memory.plus
+pokeByteOff = poke @t .: Memory.plus
 {-# INLINE peekByteOff #-}
 {-# INLINE pokeByteOff #-}
 {-# INLINE peekElemOff #-}
@@ -210,6 +217,15 @@ pokeByteOff = poke @t .: plusPtr
 
 
 -- === Standard Instances === --
+
+instance MonadIO m => Peek t m (Memory.UnmanagedPtr a) where
+    peek = fmap wrap . peek . coerce
+    {-# INLINE peek #-}
+
+instance MonadIO m => Poke t m (Memory.UnmanagedPtr a) where
+    poke = \ptr -> poke (coerce ptr) . unwrap
+    {-# INLINE poke #-}
+
 
 #define STORABLE(tp,size,aligment) \
 instance MonadIO m => Peek t m (tp) ; \
@@ -232,6 +248,7 @@ STORABLE(Int8,SIZEOF_INT8,ALIGNMENT_INT8)
 STORABLE(Int16,SIZEOF_INT16,ALIGNMENT_INT16)
 STORABLE(Int32,SIZEOF_INT32,ALIGNMENT_INT32)
 STORABLE(Int64,SIZEOF_INT64,ALIGNMENT_INT64)
+
 
 
 ----------------------------

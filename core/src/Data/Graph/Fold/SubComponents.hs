@@ -32,7 +32,7 @@ import Data.Graph.Data.Component.Class       (Component)
 import Data.Graph.Data.Component.List        (ComponentList)
 import Data.Graph.Data.Component.Set         (ComponentSet)
 import Data.Graph.Data.Component.Vector      (ComponentVectorA)
-import Data.Mutable.Storable.SmallAutoVector (SmallVector)
+import Data.Mutable.Storable.SmallAutoVector (SmallVectorA)
 import Data.Set                              (Set)
 import Data.Vector.Storable.Foreign          (Vector)
 import Foreign.Ptr.Utils                     (SomePtr)
@@ -115,7 +115,7 @@ instance Monad m
     {-# INLINE build1 #-}
 
 instance Monad m => Fold.Builder (Discovery comp) m (Vector a)
-instance Monad m => Fold.Builder (Discovery comp) m (SmallVector n a)
+instance Monad m => Fold.Builder (Discovery comp) m (SmallVectorA t alloc n a)
 
 
 -- === ComponentSet === --

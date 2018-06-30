@@ -23,7 +23,7 @@ import OCI.IR.Term.Definition (LinkTo, LinksTo)
 import Luna.IR.Term.Core ()
 
 
-type Vec = SmallVector.SmallVector
+type Vec = SmallVector.UnmanagedSmallVector
 type Vec16 = Vec 16 -- FIXME: Storable.derive doesnt support Nat literals
 
 

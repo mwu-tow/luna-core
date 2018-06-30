@@ -38,7 +38,7 @@ import qualified Data.Graph.Store.Buffer  as Buffer
 import qualified Luna.IR.Term.Ast.Invalid as InvalidIR
 
 import Data.Graph.Data.Graph.Class           (Graph)
-import Data.Mutable.Storable.SmallAutoVector (SmallVector)
+import Data.Mutable.Storable.SmallAutoVector (SmallVector, UnmanagedSmallVector)
 import Luna.Pass                             (Pass)
 import Luna.Pass.Basic                       (Compilation)
 import Test.Hspec                            (Spec, describe, it)
@@ -199,7 +199,7 @@ testVec :: Spec
 testVec = describe "test" $ it "vec" $ do
     print ""
     (print "--- vec ---" :: IO ())
-    (a :: SmallVector 0 Int) <- Mutable.new
+    (a :: UnmanagedSmallVector 0 Int) <- Mutable.new
     print =<< SmallVector.elemsPtr a
     print =<< Mutable.size a
     Mutable.pushBack a 8
@@ -364,9 +364,9 @@ instance
     --    {-# INLINE destructShallow1 #-}
 
 
-instance Applicative m => Buffer.PointerRedirection m (SmallVector.SmallVectorA alloc n IR.Name)
-instance Applicative m => Buffer.PointerRedirection m (SmallVector.SmallVectorA alloc n Char)
-instance Applicative m => Buffer.PointerRedirection m (SmallVector.SmallVectorA alloc n Word8)
+instance Applicative m => Buffer.PointerRedirection m (SmallVector.SmallVectorA t alloc n IR.Name)
+instance Applicative m => Buffer.PointerRedirection m (SmallVector.SmallVectorA t alloc n Char)
+instance Applicative m => Buffer.PointerRedirection m (SmallVector.SmallVectorA t alloc n Word8)
 instance Applicative m => Buffer.PointerRedirection m IR.Name
 instance Applicative m => Buffer.PointerRedirection m IR.ForeignImportType
 instance Applicative m => Buffer.PointerRedirection m IR.ImportSourceData

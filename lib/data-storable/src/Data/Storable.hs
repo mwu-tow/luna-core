@@ -94,13 +94,16 @@ class IsStruct a where
     struct :: Iso' a (Struct (Memory.Management a) (Fields a))
 
     type Fields a = Fields (Unwrapped a)
-    default struct :: (Wrapped a, Unwrapped a ~ Struct (Memory.Management a) (Fields a))
-                   => Iso' a (Struct (Memory.Management a) (Fields a))
-    struct = wrapped' ; {-# INLINE struct #-}
+    default struct
+        :: (Wrapped a, Unwrapped a ~ Struct (Memory.Management a) (Fields a))
+        => Iso' a (Struct (Memory.Management a) (Fields a))
+    struct = wrapped'
+    {-# INLINE struct #-}
 
 instance IsStruct (Struct t fields) where
     type Fields (Struct t fields) = fields
-    struct = id ; {-# INLINE struct #-}
+    struct = id
+    {-# INLINE struct #-}
 
 
 -- === Instances === --
@@ -189,14 +192,17 @@ instance
         in  ptr `Memory.plus` off
     {-# INLINE fieldPtr__ #-}
 
-instance (HasField name a, Storable.Peek Field IO (FieldType name a), Memory.PtrType (Memory.Management a))
-      => FieldReader name a where
-    readFieldByNameIO = \a -> Memory.withUnmanagedRawPtr (fieldPtrByName @name a) $ Storable.peek @Field
+instance
+    ( HasField name a
+    , Storable.Peek Field IO (FieldType name a)
+    , Memory.PtrType (Memory.Management a)
+    ) => FieldReader name a where
+    readFieldByNameIO = \a -> Memory.withUnmanagedPtr (fieldPtrByName @name a) $ Storable.peek @Field
     {-# INLINE readFieldByNameIO #-}
 
 instance (HasField name a, Storable.Poke Field IO (FieldType name a), Memory.PtrType (Memory.Management a))
       => FieldWriter name a where
-    writeFieldByNameIO = \a val -> Memory.withUnmanagedRawPtr (fieldPtrByName @name a) $ flip (Storable.poke @Field) val
+    writeFieldByNameIO = \a val -> Memory.withUnmanagedPtr (fieldPtrByName @name a) $ flip (Storable.poke @Field) val
     {-# INLINE writeFieldByNameIO #-}
 
 instance
@@ -248,8 +254,8 @@ free :: ∀ a m. (IsStruct a, MonadIO m, Memory.AssertUnmanaged a) => a -> m ()
 free = liftIO . Mem.free . unwrap . unwrap . view struct
 {-# INLINE free #-}
 
-unsafeCastFromPtr :: ∀ a p. IsStruct a => Memory.Ptr (Memory.Management a) () -> a
-unsafeCastFromPtr = view (from struct) . Struct @(Memory.Management a) @(Fields a)
+unsafeCastFromPtr :: ∀ a p. IsStruct a => Memory.Ptr (Memory.Management a) a -> a
+unsafeCastFromPtr = view (from struct) . Struct @(Memory.Management a) @(Fields a) . Memory.coercePtr
 {-# INLINE unsafeCastFromPtr #-}
 
 

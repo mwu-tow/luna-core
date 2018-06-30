@@ -143,7 +143,7 @@ instance
     , Storable.KnownConstantSize a
     , Memory.PtrType t
     ) => Write m (Array t n a) where
-    unsafeWrite = \a ix val -> Memory.withUnmanagedRawPtr (unwrap a)
+    unsafeWrite = \a ix val -> Memory.withUnmanagedPtr (unwrap a)
                              $ \p -> Storable.pokeElemOff @View p ix val
     {-# INLINE unsafeWrite #-}
 

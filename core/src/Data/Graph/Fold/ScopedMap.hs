@@ -27,7 +27,7 @@ import Data.Generics.Traversable             (GTraversable)
 import Data.Graph.Data.Component.Class       (Component)
 import Data.Graph.Data.Component.Set         (ComponentSet)
 import Data.Graph.Data.Component.Vector      (ComponentVectorA)
-import Data.Mutable.Storable.SmallAutoVector (SmallVector)
+import Data.Mutable.Storable.SmallAutoVector (SmallVectorA)
 import Data.Set                              (Set)
 import Data.Vector.Storable.Foreign          (Vector)
 import Foreign.Ptr.Utils                     (SomePtr)
@@ -120,7 +120,7 @@ instance {-# OVERLAPPABLE #-}
     build1 = Fold.build1 @(Fold.Struct (ScopedMap t)) ; {-# INLINE build1 #-}
 
 instance Monad m => Fold.Builder (ScopedMap t) m (Vector a)
-instance Monad m => Fold.Builder (ScopedMap t) m (SmallVector n a)
+instance Monad m => Fold.Builder (ScopedMap s) m (SmallVectorA t alloc n a)
 
 
 
