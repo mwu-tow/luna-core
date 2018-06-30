@@ -8,6 +8,9 @@ import qualified Foreign.Storable.Class as Storable
 import qualified Memory.Data.Ptr        as Memory
 import qualified Type.Known             as Type
 
+import Foreign.Ptr (Ptr)
+
+
 
 --------------------------
 -- === Construction === --
@@ -27,6 +30,9 @@ class Swizzle m a where
 
 class Unswizzle m a where
     unswizzle :: a -> m ()
+
+class UnswizzleRelTo m a where
+    unswizzleRelTo :: Ptr () -> a -> m a
 
 class Swizzle1 m a where
     swizzle1 :: a t1 -> m ()

@@ -8,11 +8,13 @@ import qualified Control.Monad.State.Layered           as State
 import qualified Data.ByteString.Internal              as ByteString
 import qualified Data.Convert2                         as Convert
 import qualified Data.Convert2                         as Convert
+import qualified Data.Generics.Traversable             as GTraversable
 import qualified Data.Graph.Data.Component.Class       as Component
 import qualified Data.Graph.Data.Component.List        as ComponentList
 import qualified Data.Graph.Data.Component.List        as ComponentList
 import qualified Data.Graph.Data.Graph.Class           as Graph
 import qualified Data.Graph.Data.Layer.Class           as Layer
+import qualified Data.Graph.Fold.LayerMap              as LayerMap
 import qualified Data.Graph.Fold.Partition             as Partition
 import qualified Data.Graph.Store.Size.Class           as Size
 import qualified Data.Map.Strict                       as Map
@@ -25,6 +27,7 @@ import qualified Data.Storable                         as Struct
 import qualified Foreign.ForeignPtr                    as ForeignPtr
 import qualified Foreign.Storable                      as StdStorable
 import qualified Foreign.Storable.Class                as Storable
+import qualified Luna.IR                               as IR
 import qualified Memory                                as Memory
 import qualified Type.Data.List                        as List
 
@@ -46,11 +49,13 @@ import Data.Storable                         (type (-::), ManagedStruct)
 import Foreign.ForeignPtr                    (touchForeignPtr)
 import Foreign.ForeignPtr.Unsafe             (unsafeForeignPtrToPtr)
 import Foreign.ForeignPtr.Utils              (SomeForeignPtr)
-import Foreign.Ptr                           (minusPtr, plusPtr)
+import Foreign.Ptr                           (Ptr, minusPtr, plusPtr)
 import Foreign.Ptr.Utils                     (SomePtr)
 import Type.Data.Semigroup                   (type (<>))
 
-import qualified Type.Show as Type
+import qualified Luna.IR.Term             as IR
+import qualified Luna.IR.Term.Ast.Invalid as InvalidIR
+import qualified Type.Show                as Type
 
 
 type RedirectMap = Map Memory.SomeUnmanagedPtr Memory.SomeUnmanagedPtr
@@ -413,15 +418,80 @@ instance
 
 data ComponentUnswizzling
 type instance Fold.Result     ComponentUnswizzling = ()
-type instance Fold.LayerScope ComponentUnswizzling = 'Fold.All
+type instance LayerMap.LayerScope ComponentUnswizzling = 'LayerMap.All
 
-instance Monad m => Fold.ComponentMap ComponentUnswizzling m comp
+-- newtype LayerPtr1 layer = LayerPtr1 (forall layout. Ptr (Layer.Cons layer layout))
 
-instance (MonadIO m, Mutable.UnswizzleP1 m (Layer.Cons layer))
-      => Fold.LayerMap ComponentUnswizzling m layer where
-        mapLayer = \a _ -> (,()) <$> Mutable.unswizzleP1 a
+-- instance (MonadIO m, Mutable.Unswizzle m (SAV.Field1 (Layer.Cons layer)))
+--       => LayerMap.LayerMap ComponentUnswizzling m layer where
+--         mapLayerPtr = \a _ -> () <$ Mutable.unswizzle (SAV.Field1 $ wrap a)
+
+instance (MonadIO m, Foo (Layer.Cons layer) m)
+      => LayerMap.LayerMap ComponentUnswizzling m layer where
+        mapLayerPtr = \a _ -> () <$ foo a
+
+class Foo a m where
+    foo :: forall t1. Ptr (a t1) -> m ()
+
+instance MonadIO m => Foo (ComponentSetA alloc tag) m where
+    foo = Mutable.unswizzle1 <=< (liftIO . StdStorable.peek)
+
+instance MonadIO m => Foo (Component comp) m where
+    foo = Mutable.unswizzle . SAV.Field . wrap
 
             -- Fold.build1 @ComponentUnswizzling
+
+instance
+    ( ctx ~ Mutable.UnswizzleRelTo m
+    , MonadIO m
+    ) => Foo IR.UniTerm m where
+    foo = \ptr -> do
+        print ">> uni unswizzle"
+        uni <- liftIO $ StdStorable.peek ptr
+        GTraversable.gmapM @(GTraversable.GTraversable ctx)
+            (GTraversable.gmapM @ctx (Mutable.unswizzleRelTo (coerce ptr))) uni
+        print "<< uni unswizzle"
+        pure ()
+
+instance MonadIO m => Mutable.UnswizzleRelTo m (ComponentVectorA alloc tag layout) where
+    unswizzleRelTo = \_ a -> a <$ Mutable.unswizzle1 a
+
+instance Applicative m => Mutable.UnswizzleRelTo m (SmallVectorA alloc n IR.Name) where
+    unswizzleRelTo = \_ a -> pure a
+
+instance Applicative m => Mutable.UnswizzleRelTo m (Component comp layout) where
+    unswizzleRelTo = \ptr comp -> do
+        let compPtr = Component.unsafeToPtr comp
+        pure $ Component.unsafeFromPtr (unsafeCoerce $ compPtr `minusPtr` ptr)
+
+instance Applicative m => Mutable.UnswizzleRelTo m (SmallVectorA alloc n Char)   where unswizzleRelTo = \_ a -> pure a
+instance Applicative m => Mutable.UnswizzleRelTo m (SmallVectorA alloc n Int)    where unswizzleRelTo = \_ a -> pure a
+instance Applicative m => Mutable.UnswizzleRelTo m (SmallVectorA alloc n Word8)  where unswizzleRelTo = \_ a -> pure a
+instance Applicative m => Mutable.UnswizzleRelTo m (SmallVectorA alloc n Word16) where unswizzleRelTo = \_ a -> pure a
+instance Applicative m => Mutable.UnswizzleRelTo m (SmallVectorA alloc n Word32) where unswizzleRelTo = \_ a -> pure a
+instance Applicative m => Mutable.UnswizzleRelTo m (SmallVectorA alloc n Word64) where unswizzleRelTo = \_ a -> pure a
+
+
+instance Applicative m => Mutable.UnswizzleRelTo m (Char)   where unswizzleRelTo = \_ a -> pure a
+instance Applicative m => Mutable.UnswizzleRelTo m (Int)    where unswizzleRelTo = \_ a -> pure a
+instance Applicative m => Mutable.UnswizzleRelTo m (Word8)  where unswizzleRelTo = \_ a -> pure a
+instance Applicative m => Mutable.UnswizzleRelTo m (Word16) where unswizzleRelTo = \_ a -> pure a
+instance Applicative m => Mutable.UnswizzleRelTo m (Word32) where unswizzleRelTo = \_ a -> pure a
+instance Applicative m => Mutable.UnswizzleRelTo m (Word64) where unswizzleRelTo = \_ a -> pure a
+instance Applicative m => Mutable.UnswizzleRelTo m (IR.Name) where unswizzleRelTo = \_ a -> pure a
+instance Applicative m => Mutable.UnswizzleRelTo m (IR.ForeignImportType) where unswizzleRelTo = \_ a -> pure a
+instance Applicative m => Mutable.UnswizzleRelTo m (Bool) where unswizzleRelTo = \_ a -> pure a
+instance Applicative m => Mutable.UnswizzleRelTo m (InvalidIR.Symbol) where unswizzleRelTo = \_ a -> pure a
+instance Applicative m => Mutable.UnswizzleRelTo m (IR.ImportSourceData) where unswizzleRelTo = \_ a -> pure a
+instance Applicative m => Mutable.UnswizzleRelTo m (IR.ImportTargetData) where unswizzleRelTo = \_ a -> pure a
+
+    -- instance
+--     ( ctx ~ Buffer.PointerRedirection m
+--     , MonadIO m
+--     ) => Buffer.PointerRedirection1 m IR.UniTerm where
+--     redirectPointers1 = \f
+--         -> GTraversable.gmapM @(GTraversable.GTraversable ctx)
+--          $ GTraversable.gmapM @ctx (Buffer.redirectPointers f)
 
 instance MonadIO m
       => Mutable.UnswizzleP1 m (ComponentSetA alloc tag) where
@@ -429,10 +499,10 @@ instance MonadIO m
 
 
 type ComponentUnswizzlingFold m comp
-   = Fold.Builder1 (Fold.ScopedMap ComponentUnswizzling) m (Component comp)
+   = Fold.Builder1 (LayerMap.Scoped ComponentUnswizzling) m (Component comp)
 
 foldUnswizzleComponents :: ComponentUnswizzlingFold m comp => Component comp layout -> m ()
-foldUnswizzleComponents = \comp -> Fold.build1 @(Fold.ScopedMap ComponentUnswizzling) comp (pure ())
+foldUnswizzleComponents = \comp -> Fold.build1 @(LayerMap.Scoped ComponentUnswizzling) comp (pure ())
 
 -- class PointerRedirection1 m a where
 --     redirectPointers1 :: (Memory.SomeUnmanagedPtr -> m Memory.SomeUnmanagedPtr)

@@ -268,7 +268,8 @@ instance (MonadIO m, IxMap m (SmallVectorA alloc n a))
     {-# INLINE mapM #-}
 
 
-newtype Field a = Field (Memory.UnmanagedPtr a)
+newtype Field  a = Field  (Memory.UnmanagedPtr a)
+newtype Field1 a = Field1 (∀ t1. Memory.UnmanagedPtr (a t1))
 
 instance (Storable.KnownConstantSize a, Mutable.Unswizzle m (Field a), MonadIO m)
       => Mutable.Unswizzle m (SmallVectorA alloc n a) where
@@ -278,7 +279,7 @@ instance (Storable.KnownConstantSize a, Mutable.Unswizzle m (Field a), MonadIO m
         let elemSize = Storable.constantSize @a
             go i ptr = if i == siz then pure () else do
                 Mutable.unswizzle (Field @a $ wrap ptr)
-                go (i - 1) $! ptr `plusPtr` elemSize
+                go (i + 1) $! ptr `plusPtr` elemSize
         go 0 ptr0
     {-# INLINE unswizzle #-}
 

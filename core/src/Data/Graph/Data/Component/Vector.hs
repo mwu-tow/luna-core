@@ -10,6 +10,7 @@ import Prologue                        hiding (FromList, ToList, fromList,
                                         toList)
 
 import qualified Data.Construction            as Data
+import qualified Data.Mutable.Class2          as Mutable
 import qualified Data.Mutable.Plain           as Data
 import qualified Data.Property                as Property
 import qualified Data.Vector.Storable.Foreign as Vector
@@ -58,12 +59,19 @@ makeLenses       ''ComponentVectorA
 deriving instance Data.CopyInitializer m (ComponentVector__ alloc tag layout)
                => Data.CopyInitializer m (ComponentVectorA  alloc tag layout)
 
+
+deriving instance Mutable.Unswizzle m (ComponentVector__ alloc tag layout)
+               => Mutable.Unswizzle m (ComponentVectorA  alloc tag layout)
+
 instance Data.CopyInitializer  m (ComponentVectorA alloc tag ())
       => Data.CopyInitializer1 m (ComponentVectorA alloc tag) where
     copyInitialize1 = \a -> Data.copyInitialize (coerce a :: ComponentVectorA alloc tag ())
     {-# INLINE copyInitialize1 #-}
 
-
+instance Mutable.Unswizzle  m (ComponentVectorA alloc tag ())
+      => Mutable.Unswizzle1 m (ComponentVectorA alloc tag) where
+    unswizzle1 = \a -> Mutable.unswizzle (coerce a :: ComponentVectorA alloc tag ())
+    {-# INLINE unswizzle1 #-}
 
 instance (FromList m (ComponentVector__ alloc comp layout), Functor m)
       => FromList m (ComponentVectorA alloc comp layout) where
