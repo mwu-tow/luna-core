@@ -592,16 +592,16 @@ type HeaderLayoutM m = HeaderLayout (Graph.Discover m)
 
 -- === Fields === --
 
-staticDataRegionSize  :: Struct.Field "staticDataRegionSize"
-dynamicDataRegionSize :: Struct.Field "dynamicDataRegionSize"
-pointerDataRegionSize :: Struct.Field "pointerDataRegionSize"
-field_componentElems  :: Struct.Field "componentElems"
-field_memoryRegion    :: Struct.Field "memoryRegion"
-staticDataRegionSize  = Struct.Field ; {-# INLINE staticDataRegionSize  #-}
-dynamicDataRegionSize = Struct.Field ; {-# INLINE dynamicDataRegionSize #-}
-pointerDataRegionSize = Struct.Field ; {-# INLINE pointerDataRegionSize #-}
-field_componentElems  = Struct.Field ; {-# INLINE field_componentElems  #-}
-field_memoryRegion    = Struct.Field ; {-# INLINE field_memoryRegion    #-}
+staticDataRegionSize  :: Struct.Lens "staticDataRegionSize"
+dynamicDataRegionSize :: Struct.Lens "dynamicDataRegionSize"
+pointerDataRegionSize :: Struct.Lens "pointerDataRegionSize"
+field_componentElems  :: Struct.Lens "componentElems"
+field_memoryRegion    :: Struct.Lens "memoryRegion"
+staticDataRegionSize  = Struct.autoLens ; {-# INLINE staticDataRegionSize  #-}
+dynamicDataRegionSize = Struct.autoLens ; {-# INLINE dynamicDataRegionSize #-}
+pointerDataRegionSize = Struct.autoLens ; {-# INLINE pointerDataRegionSize #-}
+field_componentElems  = Struct.autoLens ; {-# INLINE field_componentElems  #-}
+field_memoryRegion    = Struct.autoLens ; {-# INLINE field_memoryRegion    #-}
 
 
 dataRegion :: Graph.KnownComponentNumber graph

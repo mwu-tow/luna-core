@@ -1,11 +1,9 @@
-{-# LANGUAGE GADTs                     #-}
-{-# LANGUAGE NoMonomorphismRestriction #-}
-{-# LANGUAGE TypeInType                #-}
-{-# LANGUAGE UndecidableInstances      #-}
+{-# LANGUAGE TypeInType           #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 module Data.Storable where
 
-import Prologue hiding (read)
+import Prologue hiding (Lens, lens, read)
 
 import qualified Data.Convert2.Class    as Convert
 import qualified Foreign.ForeignPtr     as ForeignPtr
@@ -29,21 +27,13 @@ import Type.Data.List            (type (<>))
 data Fieldx
 
 
--------------------
--- === Field === --
--------------------
+
+
+----------------------
+-- === FieldRef === --
+----------------------
 
 -- === Definition === --
-
-data Field__ (path :: [Symbol]) = Field
-type Field s = Field__ (ToPath s)
-
-type family ToPath (s :: k) :: [Symbol] where
-    ToPath (s :: Symbol)   = '[s]
-    ToPath (s :: [Symbol]) = s
-
-
--- === FieldRef === --
 
 newtype FieldRef   t a    = FieldRef (Memory.Ptr t a)
 type    FieldRefOf a      = FieldRef (Memory.Management a)
@@ -52,7 +42,14 @@ type    ManagedFieldRef   = FieldRef 'Memory.Managed
 makeLenses ''FieldRef
 
 
--- === Field signature === --
+
+-------------------
+-- === Field === --
+-------------------
+
+-- === Definition === --
+
+data Field (path :: [Symbol]) = Field
 
 data FieldSig = FieldSig Symbol Type
 type name -:: tp = 'FieldSig name tp
@@ -77,14 +74,41 @@ instance Storable.KnownConstantSize a
 -- === FieldType === --
 
 type family FieldType field a where
-    FieldType field Imp       = Imp
-    FieldType (Field__ '[]) a = a
-    FieldType field         a = LookupFieldType field (Fields a)
+    FieldType field Imp     = Imp
+    FieldType (Field '[]) a = a
+    FieldType field       a = LookupFieldType field (Fields a)
 
 type family LookupFieldType path fields where
-    LookupFieldType (Field__ (n ': ns)) (('FieldSig n v) ': _)
-        = FieldType (Field__ ns) v
+    LookupFieldType (Field (n ': ns)) (('FieldSig n v) ': _)
+        = FieldType (Field ns) v
     LookupFieldType field (_ ': fs) = LookupFieldType field fs
+
+
+
+------------------
+-- === Lens === --
+------------------
+
+-- === Definition === --
+
+type Lens t = (∀ a. Field a -> Field (ToPath t <> a))
+
+type family ToPath (s :: k) :: [Symbol] where
+    ToPath (s :: Symbol)   = '[s]
+    ToPath (s :: [Symbol]) = s
+
+
+-- === Utils === --
+
+type AppliedLens a = Field '[] -> a
+
+lens :: ∀ s. Lens s
+lens = \_ -> Field
+{-# INLINE lens #-}
+
+autoLens :: Field a -> Field b
+autoLens = \_ -> Field
+{-# INLINE autoLens #-}
 
 
 
@@ -149,18 +173,34 @@ deriving instance Show   (Struct__ t fields) => Show   (Struct t fields)
 
 type Editor field a = (Reader field a, Writer field a)
 
-class Reader (field :: Type) (a :: Type) where
-    readFieldIO :: a -> IO (FieldType field a)
+class Reader (lens :: Type) (a :: Type) where
+    readFieldIO :: a -> IO (FieldType lens a)
 
 class Writer (field :: Type) (a :: Type) where
     writeFieldIO :: a -> FieldType field a -> IO ()
 
 
+-- === Types === --
+
+type FieldRefPeek t a = (Memory.PtrType t, Storable.Peek Fieldx IO a)
+type FieldRefPoke t a = (Memory.PtrType t, Storable.Poke Fieldx IO a)
+
+
 -- === API === --
 
-readField :: ∀ field a m. (Reader field a, MonadIO m)
-    => a -> m (FieldType field a)
-readField = liftIO . readFieldIO @field
+read :: ∀ field a m. (Reader field a, MonadIO m)
+     => AppliedLens field -> a -> m (FieldType field a)
+read = const $ readField @field
+{-# INLINE read #-}
+
+write :: ∀ field a m. (Writer field a, MonadIO m)
+    => AppliedLens field -> a -> FieldType field a -> m ()
+write = const $ writeField @field
+{-# INLINE write #-}
+
+readField :: ∀ lens a m. (Reader lens a, MonadIO m)
+    => a -> m (FieldType lens a)
+readField = liftIO . readFieldIO @lens
 {-# INLINE readField #-}
 
 writeField :: ∀ field a m. (Writer field a, MonadIO m)
@@ -168,15 +208,15 @@ writeField :: ∀ field a m. (Writer field a, MonadIO m)
 writeField = liftIO .: writeFieldIO @field
 {-# INLINE writeField #-}
 
-read :: ∀ field a m. (Reader field a, MonadIO m)
-    => field -> a -> m (FieldType field a)
-read = \_ -> readField @field
-{-# INLINE read #-}
+peekRef :: (FieldRefPeek t a, MonadIO m) => FieldRef t a -> m a
+peekRef = \a -> liftIO $ Memory.withUnmanagedPtr (unwrap a)
+                       $ Storable.peek @Fieldx
+{-# INLINE peekRef #-}
 
-write :: ∀ field a m. (Writer field a, MonadIO m)
-    => field -> a -> FieldType field a -> m ()
-write = \_ -> writeField @field
-{-# INLINE write #-}
+pokeRef :: (FieldRefPoke t a, MonadIO m) => FieldRef t a -> a -> m ()
+pokeRef = \a v -> liftIO $ Memory.withUnmanagedPtr (unwrap a)
+                         $ flip (Storable.poke @Fieldx) v
+{-# INLINE pokeRef #-}
 
 
 -- === Instances === --
@@ -191,23 +231,10 @@ instance (Has field a, FieldRefPoke (Memory.Management a) (FieldType field a))
     writeFieldIO = pokeRef . fieldRef @field
     {-# INLINE writeFieldIO #-}
 
-type FieldRefPeek t a = (Memory.PtrType t, Storable.Peek Fieldx IO a)
-type FieldRefPoke t a = (Memory.PtrType t, Storable.Poke Fieldx IO a)
-
-peekRef :: (FieldRefPeek t a, MonadIO m) => FieldRef t a -> m a
-peekRef = \a -> liftIO $ Memory.withUnmanagedPtr (unwrap a)
-                       $ Storable.peek @Fieldx
-{-# INLINE peekRef #-}
-
-pokeRef :: (FieldRefPoke t a, MonadIO m) => FieldRef t a -> a -> m ()
-pokeRef = \a v -> liftIO $ Memory.withUnmanagedPtr (unwrap a)
-                         $ flip (Storable.poke @Fieldx) v
-{-# INLINE pokeRef #-}
-
 
 -- === Early resolution block === --
 
-type ImpField = Field__ '[ImpSymbol]
+type ImpField = Field '[ImpSymbol]
 instance {-# OVERLAPPABLE #-} Reader ImpField a   where readFieldIO = impossible
 instance {-# OVERLAPPABLE #-} Reader field    Imp where readFieldIO = impossible
 
@@ -220,8 +247,7 @@ instance {-# OVERLAPPABLE #-} Reader field    Imp where readFieldIO = impossible
 -- === Definition === --
 
 type  HasCtx a = (IsStruct a, Memory.PtrType (Memory.Management a))
-class HasCtx a
-   => Has (field :: Type) (a :: Type) where
+class HasCtx a => Has (field :: Type) (a :: Type) where
     byteOffset :: Int
 
 
@@ -234,8 +260,9 @@ fieldRef = \a ->
     in FieldRef $! ptr `Memory.plus` off
 {-# INLINE fieldRef #-}
 
-ref :: ∀ field a. Has field a => field -> a -> FieldRefOf a (FieldType field a)
-ref = \_ -> fieldRef @field
+ref :: ∀ field a. Has field a
+    => AppliedLens field -> a -> FieldRefOf a (FieldType field a)
+ref = const $ fieldRef @field
 {-# INLINE ref #-}
 
 
@@ -249,7 +276,7 @@ class HasField__
     (idx    :: Maybe Nat) where
     byteOffset__ :: Int
 
-instance HasCtx a => Has (Field__ '[]) a where
+instance HasCtx a => Has (Field '[]) a where
     byteOffset = 0
     {-# INLINE byteOffset #-}
 
@@ -259,7 +286,7 @@ instance
     , man    ~ Memory.Management a
     , HasCtx a
     , HasField__ man label labels fields idx
-    ) => Has (Field__ (label ': labels)) a where
+    ) => Has (Field (label ': labels)) a where
     byteOffset = byteOffset__ @man @label @labels @fields @idx
     {-# INLINE byteOffset #-}
 
@@ -267,7 +294,7 @@ instance {-# OVERLAPPABLE #-}
     ( types    ~ MapFieldSigType fields
     , fields'  ~ List.Take   idx types
     , tgtType  ~ List.Index' idx types
-    , tgtField ~ Field__ labels
+    , tgtField ~ Field labels
     , Storable.KnownConstantSize fields'
     , Has tgtField tgtType
     ) => HasField__ t label labels fields ('Just idx) where
@@ -300,12 +327,14 @@ type Constructor       a        = ( StructConstructor a (Fields a)
                                   , ConsTgt__ (ConstructorSig a) ~ a
                                   )
 
-placementWith :: ∀ a. Constructor a => Allocator (Memory.Management a) -> ConstructorSig a
+placementWith :: ∀ a. Constructor a
+    => Allocator (Memory.Management a) -> ConstructorSig a
 placementWith = \alloc -> cons__ @a @(MapFieldSigType (Fields a))
                           alloc (\ptr -> (pure (), ptr))
 {-# INLINE placementWith #-}
 
-placementNew :: ∀ a. Constructor a => Memory.Ptr (Memory.Management a) a -> ConstructorSig a
+placementNew :: ∀ a. Constructor a
+    => Memory.Ptr (Memory.Management a) a -> ConstructorSig a
 placementNew = placementWith . pure . Memory.coercePtr
 {-# INLINE placementNew #-}
 
@@ -322,8 +351,10 @@ free :: ∀ a m. (IsStruct a, MonadIO m, Memory.AssertUnmanaged a) => a -> m ()
 free = liftIO . Mem.free . unwrap . unwrap . view struct
 {-# INLINE free #-}
 
-unsafeCastFromPtr :: ∀ a p. IsStruct a => Memory.Ptr (Memory.Management a) a -> a
-unsafeCastFromPtr = view (from struct) . Struct @(Memory.Management a) @(Fields a) . Memory.coercePtr
+unsafeCastFromPtr :: ∀ a p. IsStruct a
+    => Memory.Ptr (Memory.Management a) a -> a
+unsafeCastFromPtr = view (from struct)
+    . Struct @(Memory.Management a) @(Fields a) . Memory.coercePtr
 {-# INLINE unsafeCastFromPtr #-}
 
 
@@ -338,7 +369,9 @@ type family ConsTgt__ f where
     ConsTgt__ (IO a)   = a
 
 class Cons__ a types where
-    cons__ :: Allocator (Memory.Management a) -> Serializer (Memory.Management a) -> ConsSig__ a types
+    cons__ :: Allocator  (Memory.Management a)
+           -> Serializer (Memory.Management a)
+           -> ConsSig__ a types
 
 instance {-# OVERLAPPABLE #-}
     ( Cons__ a fs
@@ -348,7 +381,8 @@ instance {-# OVERLAPPABLE #-}
     ) => Cons__ a (f ': fs) where
     cons__ = \alloc f a -> cons__ @a @fs alloc $ \ptr ->
         let (!m, !ptr') = f ptr
-            f'          = m >> Memory.withUnmanagedRawPtr ptr' (flip (Storable.poke @Fieldx) a . coerce)
+            f'          = m >> Memory.withUnmanagedRawPtr ptr'
+                               (flip (Storable.poke @Fieldx) a . coerce)
             ptr''       = ptr' `Memory.plus` Storable.constantSize @f
         in  (f', ptr'')
     {-# INLINE cons__ #-}
@@ -360,7 +394,8 @@ instance
     ) => Cons__ a '[f] where
     cons__ = \alloc f a -> cons__ @a @('[]) alloc $ \ptr ->
         let (!m, !ptr') = f ptr
-            f'          = m >> Memory.withUnmanagedRawPtr ptr' (flip (Storable.poke @Fieldx) a . coerce)
+            f'          = m >> Memory.withUnmanagedRawPtr ptr'
+                               (flip (Storable.poke @Fieldx) a . coerce)
         in  (f', ptr')
     {-# INLINE cons__ #-}
 
@@ -380,9 +415,9 @@ instance IsStruct a
 
 
 
-type Foo = Field "foo"
-type Bar = Field "bar"
-type Baz = Field "baz"
+type Foo = Lens "foo"
+type Bar = Lens "bar"
+type Baz = Lens "baz"
 
 newtype X = X (Struct 'Memory.Unmanaged '["foo" -:: Int, "bar" -:: Int, "baz" -:: Int])
 makeLenses ''X
@@ -391,17 +426,19 @@ type instance Memory.Management X = 'Memory.Unmanaged
 
 instance IsStruct X
 
-foo :: Field "foo"
-foo = Field
+foo :: Lens "foo"
+foo = lens @"foo"
 
-bar :: Field "bar"
-bar = Field
+bar :: Lens "bar"
+bar = lens @"bar"
 
-baz :: Field "baz"
-baz = Field
+baz :: Lens "baz"
+baz = autoLens
 
+xxx :: Lens '["foo", "bar"]
+xxx = foo . bar
 
--- -- Struct.Has (Field "foo") a
+-- -- -- Struct.Has (Lens "foo") a
 
 test :: Int -> Int -> Int -> IO X
 test = construct @X
@@ -417,86 +454,3 @@ main = do
 
     print "end"
 
-
-
--- tstg :: _
--- tstg a = read foo a
-
-
--- construct :: ∀ fields. Constructor fields
---           => MemAllocator -> ConstructorSig fields
--- construct malloc = allocProduct @fields malloc (\ptr -> (pure (), ptr))
--- {-# INLINE construct #-}
-
--- var :: Int -> IO Varx
--- var = product @VarLayout Mem.mallocBytes
--- {-# NOINLINE var #-}
-
--- match :: Memory.SomePtr -> Vector Memory.SomePtr -> IO Matchx
--- match = product @MatchLayout Mem.mallocBytes
--- {-# NOINLINE match #-}
-
--- main :: IO ()
--- main = do
---     v <- var 7
---     print =<< viewField @"name" v
---     -- print $ Type.val' @(ByteSize Varx)
---     print "end"
--- -- instance Storable (Struct layout)
-
--- -- data Model
-
-
-
--- -- type Node = Struct '[] '[Model]
-
--- data FieldPath (path :: [Symbol]) = FieldPath
-
--- class IsField path a where
---     fieldx :: FieldPath path -> a
-
-
--- field1 :: IsField '["f1"] a => a
--- field1 = fieldx (FieldPath @'["f1"])
-
-data FieldPath (path :: [Symbol]) = FieldPath
-
-
--- data FieldPath (path :: [Symbol]) where
---     FieldPath  :: FieldPath p -> FieldPath p' -> FieldPath (p <> p')
---     FieldPath' :: FieldPath path
-
-
-type Field2 t = (∀ a. FieldPath a -> FieldPath (ToPath t <> a))
-
-field :: ∀ s. Field2 s
-field = \_ -> FieldPath
-{-# INLINE field #-}
-
-
-field1 :: Field2 "f1"
-field1 = field @"f1"
-
-
-field2 :: Field2 "f2"
-field2 = field @"f2"
-
--- field_c1 :: Field2 '["f1", "f2"]
-field_c1 = field1 . field2
-
-
-type AppliedField a = FieldPath '[] -> a
-
-evalField :: AppliedField a -> a
-evalField = ($ FieldPath @'[])
-
-
-
-class Foox a where
-    foox :: FieldPath a -> Int
-
--- xx :: _
-xx = foox . evalField
-
-
--- yy = xx field_c1

@@ -101,14 +101,14 @@ type UnmanagedSmallVectorA = SmallVectorA 'Memory.Unmanaged
 
 -- === Fields === --
 
-_length      :: Struct.Field "length"
-_capacity    :: Struct.Field "capacity"
-_externalMem :: Struct.Field "externalMem"
-_localMem    :: Struct.Field "localMem"
-_length      = Struct.Field ; {-# INLINE _length      #-}
-_capacity    = Struct.Field ; {-# INLINE _capacity    #-}
-_externalMem = Struct.Field ; {-# INLINE _externalMem #-}
-_localMem    = Struct.Field ; {-# INLINE _localMem    #-}
+_length      :: Struct.Lens "length"
+_capacity    :: Struct.Lens "capacity"
+_externalMem :: Struct.Lens "externalMem"
+_localMem    :: Struct.Lens "localMem"
+_length      = Struct.autoLens ; {-# INLINE _length      #-}
+_capacity    = Struct.autoLens ; {-# INLINE _capacity    #-}
+_externalMem = Struct.autoLens ; {-# INLINE _externalMem #-}
+_localMem    = Struct.autoLens ; {-# INLINE _localMem    #-}
 
 
 -- === Utils === --
