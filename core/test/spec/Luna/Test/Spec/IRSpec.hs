@@ -292,9 +292,9 @@ test = describe "test" $ it "test" $ runPass' $ do
 
     v  <- IR.var "a"
 
-    -- vn <- Mutable.fromList ["foo", "bar", "baz"]
-    -- u <- IR.update v vn v
-    -- IR.Update vu1 _ vu2 <- IR.model u
+    vn <- Mutable.fromList ["foo", "bar", "baz"]
+    u <- IR.update v vn v
+    IR.Update vu1 _ vu2 <- IR.model u
 
 
 
@@ -306,9 +306,9 @@ test = describe "test" $ it "test" $ runPass' $ do
     vttpl   <- Layer.read @IR.Type vtp
 
     putStrLn $ ": v     = " <> show v
-    -- putStrLn $ ": u     = " <> show u
-    -- putStrLn $ ": vu1   = " <> show vu1
-    -- putStrLn $ ": vu2   = " <> show vu2
+    putStrLn $ ": u     = " <> show u
+    putStrLn $ ": vu1   = " <> show vu1
+    putStrLn $ ": vu2   = " <> show vu2
     putStrLn $ ": vtpl  = " <> show vtpl
     putStrLn $ ": vtp   = " <> show vtp
     putStrLn $ ": vttpl = " <> show vttpl
@@ -324,15 +324,47 @@ test = describe "test" $ it "test" $ runPass' $ do
 
     -- print "--------------------------"
 
-    buffer <- Store.serialize v
+    buffer <- Store.serialize u
     putStrLn "\n---------------------\n"
 
-    c <- Store.deserialize @IR.Terms buffer
-    m <- Layer.read @IR.Model c
+    u' <- Store.deserialize @IR.Terms buffer
+    m  <- Layer.read @IR.Model u'
     print $ IR.showTag m
-    print c
+    print u'
 
-    True `shouldBe` True
+    -- case m of
+    --     IR.UniTermVar (IR.Var n) -> Layer.write @IR.Model c (IR.UniTermVar (IR.Var "X"))
+    --     _                        -> print "nope :("
+
+    putStrLn $ ": v      = " <> show v
+    putStrLn $ ": u      = " <> show u
+    putStrLn $ ": vu1    = " <> show vu1
+    putStrLn $ ": vu2    = " <> show vu2
+    putStrLn $ ": vtpl   = " <> show vtpl
+    putStrLn $ ": vtp    = " <> show vtp
+    putStrLn $ ": vttpl  = " <> show vttpl
+    putStrLn ""
+
+    m <- Layer.read @IR.Model u'
+    case m of
+        IR.UniTermUpdate (IR.Update vu1' n vu2') -> do
+
+            v' <- Layer.read @IR.Source vu1'
+
+            putStrLn $ ": v'     = " <> show v'
+            putStrLn $ ": vu1'   = " <> show vu1'
+            putStrLn $ ": vu2'   = " <> show vu2'
+
+            vm' <- Layer.read @IR.Model v'
+            print $ IR.showTag vm'
+        _ -> print "nope :("
+
+    -- vm <- Layer.read @IR.Model v
+    -- case vm of
+    --     IR.UniTermVar (IR.Var n) -> print ("!!!", n)
+    --     _                        -> print "nope :("
+
+    -- True `shouldBe` True
 
 spec :: Spec
 spec = do
