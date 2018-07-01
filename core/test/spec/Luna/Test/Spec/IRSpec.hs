@@ -324,8 +324,14 @@ test = describe "test" $ it "test" $ runPass' $ do
 
     -- print "--------------------------"
 
-    Store.serialize v
-    print "END"
+    buffer <- Store.serialize v
+    putStrLn "\n---------------------\n"
+
+    c <- Store.deserialize @IR.Terms buffer
+    m <- Layer.read @IR.Model c
+    print $ IR.showTag m
+    print c
+
     True `shouldBe` True
 
 spec :: Spec

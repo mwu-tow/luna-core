@@ -2,6 +2,7 @@ module Data.Graph.Store where
 
 import Prologue
 
+import qualified Data.Graph.Data.Component.Class as Component
 import qualified Data.Graph.Data.Graph.Class     as Graph
 import qualified Data.Graph.Fold.Partition       as Partition
 import qualified Data.Graph.Store.Alloc          as Alloc
@@ -85,7 +86,7 @@ type Serializer comp m =
     )
 
 serialize :: ∀ comp m layout. Serializer comp m
-    => Component comp layout -> m () -- MemoryRegion
+    => Component comp layout -> m (Buffer.BufferM m) -- MemoryRegion
 serialize comp = do
     putStrLn "\nSERIALIZE"
 
@@ -117,12 +118,43 @@ serialize comp = do
     putStrLn "\n=== pointerRedirection ==="
     Buffer.redirectComponents @(Graph.ComponentsM m) redirectMap ccount dataRegion
 
-    putStrLn "\n=== pointer unswizzling ==="
-    Buffer.unswizzleComponents__ @(Graph.ComponentsM m) ccount dataRegion
-    -- memRegion <- Alloc.alloc @comps clusters
-    pure ()
-    -- serInfo   <- Serialize.serializeClusters @comps clusters memRegion
-    -- pure $! serInfo ^. Serialize.memoryRegion
+    -- putStrLn "\n=== pointer unswizzling ==="
+    -- Buffer.unswizzleComponents__ @(Graph.ComponentsM m) ccount dataRegion
+
+    pure buffer
 {-# INLINE serialize #-}
 
 
+type Deserializer m =
+    ( MonadIO m
+    , Buffer.ComponentCountDecoder m
+    , Buffer.StaticComponentsDecoder m
+    , Buffer.ComponentStaticInitializer2 m
+    , Buffer.ComponentStaticRedirection2 (Graph.ComponentsM m) m
+    )
+
+deserialize :: ∀ comp layout m. Deserializer m => Buffer.BufferM m -> m (Component comp layout)
+deserialize = \buffer -> do
+    putStrLn "\n=== decodeComponentCount ==="
+    ccount <- Buffer.decodeComponentCount buffer
+
+    putStrLn "\n=== decodeStaticComponents ==="
+    offsetMap <- Buffer.decodeStaticComponents ccount buffer
+
+    putStrLn "\n=== offsetMap ==="
+    pprint offsetMap
+
+    putStrLn "\n=== copyInitializeComps2 ==="
+    let (offs, cmpPtrs) = offsetMap
+    Buffer.copyInitializeComponents2 ccount cmpPtrs -- dataRegion dynDataRegion
+
+    putStrLn "\n=== pointerRedirection ==="
+    Buffer.redirectComponents2 @(Graph.ComponentsM m) offs ccount cmpPtrs
+
+    let (p:_) = cmpPtrs
+    pure $ Component.unsafeFromPtr (unwrap p)
+
+    -- putStrLn "\n=== copyInitializeComps2 ==="
+    -- Buffer.copyInitializeComps2 ccount buffer
+
+    -- pure ()

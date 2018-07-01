@@ -9,6 +9,7 @@ import qualified Data.ByteString.Internal              as ByteString
 import qualified Data.Convert2                         as Convert
 import qualified Data.Convert2                         as Convert
 import qualified Data.Generics.Traversable             as GTraversable
+import qualified Data.Graph.Component.Edge.Class       as Edge
 import qualified Data.Graph.Data.Component.Class       as Component
 import qualified Data.Graph.Data.Component.List        as ComponentList
 import qualified Data.Graph.Data.Component.List        as ComponentList
@@ -25,6 +26,7 @@ import qualified Data.Mutable.Storable.Array           as Array
 import qualified Data.Mutable.Storable.SmallAutoVector as SAV
 import qualified Data.Storable                         as Struct
 import qualified Foreign.ForeignPtr                    as ForeignPtr
+import qualified Foreign.Memory.Pool                   as MemPool
 import qualified Foreign.Storable                      as StdStorable
 import qualified Foreign.Storable.Class                as Storable
 import qualified Luna.IR                               as IR
@@ -49,12 +51,14 @@ import Data.Storable                         (type (-::), ManagedStruct)
 import Foreign.ForeignPtr                    (touchForeignPtr)
 import Foreign.ForeignPtr.Unsafe             (unsafeForeignPtrToPtr)
 import Foreign.ForeignPtr.Utils              (SomeForeignPtr)
+import Foreign.Memory.Pool                   (MemPool)
 import Foreign.Ptr                           (Ptr, minusPtr, plusPtr)
 import Foreign.Ptr.Utils                     (SomePtr)
 import Type.Data.Semigroup                   (type (<>))
 
 import qualified Luna.IR.Term             as IR
 import qualified Luna.IR.Term.Ast.Invalid as InvalidIR
+import qualified Type.Known               as Type
 import qualified Type.Show                as Type
 
 
@@ -733,11 +737,362 @@ instance
 
 
 
+---------------------------------------------
+---------------------------------------------
+---------------------------------------------
+---------------------------------------------
+---------------------------------------------
+
+
+-----------------------------------
+-- === ComponentCountDecoder === --
+-----------------------------------
+
+class ComponentCountDecoder m where
+    decodeComponentCount :: BufferM m -> m [Int]
+
+instance
+    ( compNum ~ Graph.ComponentNumberM m
+    , MonadIO m
+    , Type.KnownInt compNum
+    ) => ComponentCountDecoder m where
+    decodeComponentCount = \buffer -> do
+        let compNum = Type.val' @compNum :: Int
+            elsArr = componentElems buffer
+        putStrLn $ "Deserializing. Component type count: " <> show compNum
+
+        ccount <- mapM (Mutable.unsafeRead elsArr) [0 .. compNum - 1]
+        putStrLn $ "ccount: " <> show ccount
+        pure ccount
+    {-# INLINE decodeComponentCount #-}
+
+
+
+-------------------------------------
+-- === StaticComponentsDecoder === --
+-------------------------------------
+
+
+type DecodeOffsetMap = [Int]
+type DecodeRegions   = [Memory.SomeUnmanagedPtr]
+
+class StaticComponentsDecoder m where
+    decodeStaticComponents :: [Int] -> BufferM m -> m (DecodeOffsetMap, DecodeRegions)
+
+instance
+    ( comps ~ Graph.ComponentsM m
+    , StaticComponentsDecoder__ comps m
+    , Graph.KnownComponentNumberM m
+    , MonadIO m
+    ) => StaticComponentsDecoder m where
+    decodeStaticComponents = \ccount buffer -> do
+        let dr            = dataRegion buffer
+        let dataRegionPtr = unwrap dr
+        Memory.withUnmanagedPtr dataRegionPtr $ decodeStaticComponents__ @comps ccount
+    {-# INLINE decodeStaticComponents #-}
+
+class StaticComponentsDecoder__ (comps :: [Type]) m where
+    decodeStaticComponents__ :: [Int] -> Memory.SomeUnmanagedPtr -> m (DecodeOffsetMap, DecodeRegions)
+
+instance Applicative m
+      => StaticComponentsDecoder__ '[] m where
+    decodeStaticComponents__ = \_ _ -> pure (mempty, mempty)
+    {-# INLINE decodeStaticComponents__ #-}
+
+instance
+    ( layers ~ Graph.ComponentLayersM m comp
+    , Layer.KnownByteSize layers
+    , State.Getter (MemPool (Component comp ())) m
+    , MonadIO m
+    , StaticComponentsDecoder__ comps m
+    , Type.Show comp
+    ) => StaticComponentsDecoder__ (comp ': comps) m where
+    decodeStaticComponents__ = \(n:ns) srcPtr -> do
+        putStrLn $ "Static component decoder: " <> Type.show @comp <> " (" <> show n <> ")"
+        let compSize = Layer.byteSize @layers
+        pool       <- State.get @(MemPool (Component comp ()))
+        tgtPtr'    <- MemPool.allocN pool n
+        let tgtPtr      = wrap $ coerce tgtPtr'
+            bytesToCopy = compSize * n
+        Memory.copyBytes tgtPtr srcPtr bytesToCopy
+        let nextSrcPtr = srcPtr `Memory.plus` bytesToCopy
+        (map, regions) <- decodeStaticComponents__ @comps ns nextSrcPtr
+        pure $ ((tgtPtr `Memory.minus` srcPtr) : map, tgtPtr : regions)
+    {-# INLINE decodeStaticComponents__ #-}
 
 
 
 
 
+
+
+--------------------------------
+-- === CopyInitialization2 === --
+--------------------------------
+
+-- === Definition === --
+
+data CopyInitialization2
+type instance Fold.Result     CopyInitialization2 = ()
+type instance Fold.LayerScope CopyInitialization2 = 'Fold.All
+
+instance Monad m => Fold.ComponentBuilder CopyInitialization2 m comp
+
+instance (Monad m, CopyInitializerP1_2 m (Layer.Cons layer))
+      => Fold.LayerBuilder CopyInitialization2 m layer where
+        layerBuild = \layer _ -> () <$ copyInitializeP1_2 layer
+
+
+-- === CopyInitializerP1_2 === --
+
+class Applicative m => CopyInitializerP1_2 m a where
+    copyInitializeP1_2 :: ∀ t1. a t1 -> m (a t1)
+    copyInitializeP1_2 = pure
+    {-# INLINE copyInitializeP1_2 #-}
+
+instance (Data.CopyInitializer1 m (ComponentSet comp), Applicative m)
+      => CopyInitializerP1_2 m (ComponentSet comp) where
+    copyInitializeP1_2 = \a -> a <$ Data.copyInitialize1 a
+
+instance Applicative m => CopyInitializerP1_2 m (Component comp)
+
+instance {-# OVERLAPPABLE #-}
+    ( Fold.Builder1 (Fold.Struct CopyInitialization2) m a
+    , Applicative m
+    ) => CopyInitializerP1_2 m a where
+    copyInitializeP1_2 = \a -> a <$ (Fold.build1 @(Fold.Struct CopyInitialization2) a (pure ()))
+
+
+-- === CopyInitialization2 Folds === --
+
+instance (Data.CopyInitializer1 m (ComponentSet comp), Monad m)
+      => Fold.Builder1 CopyInitialization2 m (ComponentSet comp) where
+    build1 = \a x -> x <* Data.copyInitialize1 a
+    {-# INLINE build1 #-}
+
+instance (Data.CopyInitializer1 m (ComponentVector comp), Monad m)
+      => Fold.Builder1 CopyInitialization2 m (ComponentVector comp) where
+    build1 = \a x -> x <* Data.copyInitialize1 a
+    {-# INLINE build1 #-}
+
+instance (Data.CopyInitializer m (SmallVectorA t alloc comp a), Monad m)
+      => Fold.Builder CopyInitialization2 m (SmallVectorA t alloc comp a) where
+    build = \a x -> x <* Data.copyInitialize a
+    {-# INLINE build #-}
+
+instance Monad m => Fold.Builder1 CopyInitialization2 m (Component comp)
+
+
+
+
+-----------------------------
+-- === CopyInitializer2 === --
+-----------------------------
+
+-- === Definition === --
+
+type ComponentStaticInitializer2 m =
+    ( ComponentStaticInitializer2__ (Graph.ComponentsM m) m
+    , Graph.KnownComponentNumber (Graph.Discover m)
+    , MonadIO m
+    )
+
+copyInitializeComponents2 :: ∀ m. ComponentStaticInitializer2 m
+    => [Int] -> [Memory.SomeUnmanagedPtr] -> m ()
+copyInitializeComponents2 ccount regions = do
+    copyInitializeComponents2__ @(Graph.ComponentsM m) ccount regions
+{-# INLINE copyInitializeComponents2 #-}
+
+
+
+-- === ComponentInitializerFold === --
+
+type ComponentInitializerFold2 m comp
+   = Fold.Builder1 (Fold.Scoped CopyInitialization2) m (Component comp)
+
+foldInitializeComponent2 :: ComponentInitializerFold2 m comp => Component comp layout -> m ()
+foldInitializeComponent2 = \comp -> Fold.build1 @(Fold.Scoped CopyInitialization2) comp (pure ())
+
+class ComponentStaticInitializer2__ (comps :: [Type]) m where
+    copyInitializeComponents2__ :: [Int] -> [Memory.SomeUnmanagedPtr] -> m ()
+
+instance Applicative m
+      => ComponentStaticInitializer2__ '[] m where
+    copyInitializeComponents2__ = \_ _ -> pure ()
+    {-# INLINE copyInitializeComponents2__ #-}
+
+instance
+    ( layers ~ Graph.ComponentLayersM m comp
+    , Layer.KnownByteSize layers
+    , ComponentInitializerFold2 m comp
+    , ComponentStaticInitializer2__ comps m
+    , MonadIO m
+    -- debug:
+    , Type.Show comp
+    )
+      => ComponentStaticInitializer2__ (comp ': comps) m where
+    copyInitializeComponents2__ = \(compCount : compCounts) (region : regions) -> do
+        let compSize   = Layer.byteSize @layers
+        putStrLn $ "copyInitializeComponents2 for " <> Type.show @comp <> " (" <> show compCount <> ")"
+        flip mapM_ [0 .. compCount - 1] $ \ix -> do
+            putStrLn $ ">> " <> show ix <> " (" <> show region <> ")"
+            let ptr  = region `Memory.plus` (ix * compSize)
+            Memory.withUnmanagedPtr ptr $ \uptr ->
+                let comp = Component.unsafeFromPtr @comp (unwrap uptr)
+                in  foldInitializeComponent2 comp
+        copyInitializeComponents2__ @comps compCounts regions
+
+
+
+
+
+
+---------------------------------
+-- === Pointer redirection === --
+---------------------------------
+
+
+type ComponentStaticRedirection2 comps m
+    = ( ComponentStaticRedirection2__ comps (State.StateT DecodeOffsetMap m)
+      , Monad m
+      )
+redirectComponents2 :: ∀ comps m. ComponentStaticRedirection2 comps m
+    => DecodeOffsetMap -> [Int] -> [Memory.SomeUnmanagedPtr] -> m ()
+redirectComponents2 = \m ccount region -> flip (State.evalT @DecodeOffsetMap) m
+    $ redirectComponents2__ @comps ccount region
+
+
+class ComponentStaticRedirection2__ (comps :: [Type]) m where
+    redirectComponents2__ :: [Int] -> [Memory.SomeUnmanagedPtr] -> m ()
+
+instance Applicative m
+      => ComponentStaticRedirection2__ '[] m where
+    redirectComponents2__ = \_ _ -> pure ()
+    {-# INLINE redirectComponents2__ #-}
+
+instance
+    ( layers ~ Graph.ComponentLayersM m comp
+    , Layer.KnownByteSize layers
+    , ComponentRedirectFold2 m comp
+    , ComponentStaticRedirection2__ comps m
+    , MonadIO m
+    -- debug:
+    , Type.Show comp
+    )
+      => ComponentStaticRedirection2__ (comp ': comps) m where
+    redirectComponents2__ = \(compCount : compCounts) (region : regions) -> do
+        let compSize   = Layer.byteSize @layers
+        putStrLn $ "redirectComponents2 for " <> Type.show @comp <> " (" <> show compCount <> ")"
+        flip mapM_ [0 .. compCount - 1] $ \ix -> do
+            putStrLn $ ">> " <> show ix <> " (" <> show region <> ")"
+            let ptr  = region `Memory.plus` (ix * compSize)
+            Memory.withUnmanagedPtr ptr $ \uptr ->
+                let comp = Component.unsafeFromPtr @comp (unwrap uptr)
+                in  foldRedirectComponent2 comp
+        redirectComponents2__ @comps compCounts regions
+
+data ComponentRedirection2
+type instance Fold.Result     ComponentRedirection2 = ()
+type instance Fold.LayerScope ComponentRedirection2 = 'Fold.All
+
+instance Monad m => Fold.ComponentMap ComponentRedirection2 m comp
+
+instance (MonadIO m, PointerRedirection1_2 m (Layer.Cons layer), State.Getter DecodeOffsetMap m)
+      => Fold.LayerMap ComponentRedirection2 m layer where
+        mapLayer = \a _ -> do
+            m <- State.get @DecodeOffsetMap
+            -- let f ptr = do
+            --         print $ "LOOKUP " <> show ptr
+            --         pure . unsafeFromJust . flip Map.lookup m $ ptr
+            (,()) <$> redirectPointers1_2 m a
+
+            -- Fold.build1 @ComponentRedirection2
+
+
+
+type ComponentRedirectFold2 m comp
+   = Fold.Builder1 (Fold.ScopedMap ComponentRedirection2) m (Component comp)
+
+foldRedirectComponent2 :: ComponentRedirectFold2 m comp => Component comp layout -> m ()
+foldRedirectComponent2 = \comp -> Fold.build1 @(Fold.ScopedMap ComponentRedirection2) comp (pure ())
+
+class PointerRedirection1_2 m a where
+    redirectPointers1_2 :: DecodeOffsetMap
+                      -> a t1 -> m (a t1)
+
+class PointerRedirection_2 m a where
+    redirectPointers_2 :: DecodeOffsetMap
+                     -> a -> m a
+
+    default redirectPointers_2 :: Applicative m => DecodeOffsetMap -> a -> m a
+    redirectPointers_2 = \_ -> pure
+
+instance
+    -- ( comps ~ Graph.ComponentsM m
+    -- , idx   ~ List.Index' tag comps
+    -- , Type.KnownInt idx
+    ( MonadIO m, PointerRedirection1_2 m (Component tag)
+    ) => PointerRedirection1_2 m (ComponentSetA alloc tag) where
+    redirectPointers1_2 = \f a -> do
+        -- let idx = Type.val' @idx :: Int
+        print ">> redirection ComponentSetA"
+        out <- a <$ Mutable.mapM a (redirectPointers1_2 f)
+        print ">> redirection ComponentSetA"
+        pure out
+    {-# INLINE redirectPointers1_2 #-}
+
+instance
+    ( comps ~ Graph.ComponentsM m
+    , idx   ~ List.ElemIndex' comp comps
+    , Type.KnownInt idx
+    , MonadIO m
+    ) => PointerRedirection1_2 m (Component comp) where
+    redirectPointers1_2 = \f a ->
+        let idx  = Type.val' @idx :: Int
+            off  = f !! idx
+            ptr  = wrap $ Component.unsafeToPtr a :: Memory.UnmanagedPtr ()
+            ptr' = ptr `Memory.plus` off
+        in do
+            putStrLn $ "shift: " <> show off
+            pure $ Component.unsafeFromPtr (unwrap ptr')
+
+
+instance (MonadIO m, PointerRedirection1_2 m (Component tag))
+      => PointerRedirection_2 m (ComponentVectorA alloc tag layout) where
+    redirectPointers_2 = \f a -> do
+        print ">> redirection ComponentVectorA"
+        out <- a <$ Mutable.mapM a (redirectPointers1_2 f)
+        print "<< redirection ComponentVectorA"
+        pure out
+    {-# INLINE redirectPointers_2 #-}
+
+instance (Applicative m, PointerRedirection1_2 m (Component comp))
+      => PointerRedirection_2 m (Component comp layout) where
+    redirectPointers_2 = redirectPointers1_2
+
+instance Applicative m => PointerRedirection_2 m Word8
+instance Applicative m => PointerRedirection_2 m Word16
+instance Applicative m => PointerRedirection_2 m Word32
+instance Applicative m => PointerRedirection_2 m Word64
+instance Applicative m => PointerRedirection_2 m Bool
+
+instance
+    ( ctx ~ PointerRedirection_2 m
+    , MonadIO m
+    , PointerRedirection1_2 m (Component Edge.Edges)
+    ) => PointerRedirection1_2 m IR.UniTerm where
+    redirectPointers1_2 = \f
+        -> GTraversable.gmapM @(GTraversable.GTraversable ctx)
+         $ GTraversable.gmapM @ctx (redirectPointers_2 f)
+
+instance Applicative m => PointerRedirection_2 m (SmallVectorA t alloc n IR.Name)
+instance Applicative m => PointerRedirection_2 m (SmallVectorA t alloc n Char)
+instance Applicative m => PointerRedirection_2 m (SmallVectorA t alloc n Word8)
+instance Applicative m => PointerRedirection_2 m IR.Name
+instance Applicative m => PointerRedirection_2 m IR.ForeignImportType
+instance Applicative m => PointerRedirection_2 m IR.ImportSourceData
+instance Applicative m => PointerRedirection_2 m IR.ImportTargetData
+instance Applicative m => PointerRedirection_2 m InvalidIR.Symbol
 
 
 -- newtype Header = Header

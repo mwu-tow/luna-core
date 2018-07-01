@@ -147,6 +147,16 @@ instance
                              $ \p -> Storable.pokeElemOff @View p ix val
     {-# INLINE unsafeWrite #-}
 
+instance
+    ( MonadIO m
+    , Storable.Peek View m a
+    , Storable.KnownConstantSize a
+    , Memory.PtrType t
+    ) => Read m (Array t n a) where
+    unsafeRead = \a ix -> Memory.withUnmanagedPtr (unwrap a)
+                        $ \p -> Storable.peekElemOff @View p ix
+    {-# INLINE unsafeRead #-}
+
 -- instance (MonadIO m, Storable.StaticPeek View m a)
 --       => ToList m (Array t n a) where
 --     toList = \a -> do
