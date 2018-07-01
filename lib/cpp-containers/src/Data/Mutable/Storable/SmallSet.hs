@@ -37,6 +37,7 @@ type SmallSet__ = UnmanagedSmallVectorA
 makeLenses ''SmallSetA
 
 type instance Item (SmallSetA alloc n a) = a
+type instance Memory.Management (SmallSetA alloc n a) = 'Memory.Unmanaged
 
 
 -- === Utils === --

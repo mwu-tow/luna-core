@@ -76,7 +76,7 @@ unsafeNull = UnknownSizeMemRegion Memory.nullPtr
 
 -- FIXME: change it to Struct.FieldInitializer
 instance Applicative m
-      => Storable.Poke Struct.Field m (UnknownSizeMemRegion t a) where
+      => Storable.Poke Struct.Fieldx m (UnknownSizeMemRegion t a) where
     poke = \_ _ -> pure ()
     {-# INLINE poke #-}
 
@@ -592,32 +592,32 @@ type HeaderLayoutM m = HeaderLayout (Graph.Discover m)
 
 -- === Fields === --
 
-field_staticDataRegionSize  :: Struct.FieldRef "staticDataRegionSize"
-field_dynamicDataRegionSize :: Struct.FieldRef "dynamicDataRegionSize"
-field_pointerDataRegionSize :: Struct.FieldRef "pointerDataRegionSize"
-field_componentElems        :: Struct.FieldRef "componentElems"
-field_memoryRegion          :: Struct.FieldRef "memoryRegion"
-field_staticDataRegionSize  = Struct.field ; {-# INLINE field_staticDataRegionSize  #-}
-field_dynamicDataRegionSize = Struct.field ; {-# INLINE field_dynamicDataRegionSize #-}
-field_pointerDataRegionSize = Struct.field ; {-# INLINE field_pointerDataRegionSize #-}
-field_componentElems        = Struct.field ; {-# INLINE field_componentElems        #-}
-field_memoryRegion          = Struct.field ; {-# INLINE field_memoryRegion          #-}
+staticDataRegionSize  :: Struct.Field "staticDataRegionSize"
+dynamicDataRegionSize :: Struct.Field "dynamicDataRegionSize"
+pointerDataRegionSize :: Struct.Field "pointerDataRegionSize"
+field_componentElems  :: Struct.Field "componentElems"
+field_memoryRegion    :: Struct.Field "memoryRegion"
+staticDataRegionSize  = Struct.Field ; {-# INLINE staticDataRegionSize  #-}
+dynamicDataRegionSize = Struct.Field ; {-# INLINE dynamicDataRegionSize #-}
+pointerDataRegionSize = Struct.Field ; {-# INLINE pointerDataRegionSize #-}
+field_componentElems  = Struct.Field ; {-# INLINE field_componentElems  #-}
+field_memoryRegion    = Struct.Field ; {-# INLINE field_memoryRegion    #-}
 
 
 dataRegion :: Graph.KnownComponentNumber graph
     => Buffer graph -> BufferDataRegion
-dataRegion = coerce . Struct.fieldPtr field_memoryRegion
+dataRegion = coerce . unwrap . Struct.ref field_memoryRegion
 {-# INLINE dataRegion #-}
 
 dynDataRegion :: (Graph.KnownComponentNumber graph, MonadIO m)
     => Buffer graph -> m BufferDataRegion
 dynDataRegion = \a -> do
-    staticSize <- Struct.readField field_staticDataRegionSize  a
-    pure $ coerce (Struct.fieldPtr field_memoryRegion a `Memory.plus` staticSize)
+    staticSize <- Struct.read staticDataRegionSize  a
+    pure $ coerce (unwrap (Struct.ref field_memoryRegion a) `Memory.plus` staticSize)
 {-# INLINE dynDataRegion #-}
 
 componentElems :: Buffer graph -> ManagedArray (Graph.ComponentNumber graph) Int
-componentElems = coerce . Struct.fieldPtr field_componentElems
+componentElems = coerce . unwrap . Struct.ref field_componentElems
 {-# INLINE componentElems #-}
 
 
@@ -639,9 +639,9 @@ alloc = \ccount size -> liftIO $ do
     let struct   = Struct.unsafeCastFromPtr ptr
         elsCount = componentElems struct
 
-    Struct.writeField field_staticDataRegionSize  struct staticRegionSize
-    Struct.writeField field_dynamicDataRegionSize struct dataRegionSize
-    Struct.writeField field_pointerDataRegionSize struct ptrRegionSize
+    Struct.write staticDataRegionSize  struct staticRegionSize
+    Struct.write dynamicDataRegionSize struct dataRegionSize
+    Struct.write pointerDataRegionSize struct ptrRegionSize
     Mutable.unsafeWriteFromList elsCount ccount
 
     pure struct
@@ -652,9 +652,9 @@ alloc = \ccount size -> liftIO $ do
 unsafeFreeze :: (MonadIO m, Graph.KnownComponentNumber graph)
     => Buffer graph -> m ByteString
 unsafeFreeze = \a -> do
-    staticSize  <- Struct.readField field_staticDataRegionSize  a
-    dynDataSize <- Struct.readField field_dynamicDataRegionSize a
-    dynPtrSize  <- Struct.readField field_pointerDataRegionSize a
+    staticSize  <- Struct.read staticDataRegionSize  a
+    dynDataSize <- Struct.read dynamicDataRegionSize a
+    dynPtrSize  <- Struct.read pointerDataRegionSize a
     let mem = dataRegion a
     let totalSize = staticSize + dynDataSize + dynPtrSize
     pure $ ByteString.PS (coerce mem) 0 totalSize

@@ -50,7 +50,7 @@ instance (a ~ b, t ~ 'Memory.Managed)
       => Convert.To (Ptr t a) (Raw.ForeignPtr b) where
     to = wrap ; {-# INLINE to #-}
 
-coercePtr :: Ptr r a -> Ptr t b
+coercePtr :: Ptr t a -> Ptr t b
 coercePtr = unsafeCoerce
 {-# INLINE coercePtr #-}
 

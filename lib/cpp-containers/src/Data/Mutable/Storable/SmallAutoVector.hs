@@ -101,33 +101,33 @@ type UnmanagedSmallVectorA = SmallVectorA 'Memory.Unmanaged
 
 -- === Fields === --
 
-_length      :: Struct.FieldRef "length"
-_capacity    :: Struct.FieldRef "capacity"
-_externalMem :: Struct.FieldRef "externalMem"
-_localMem    :: Struct.FieldRef "localMem"
-_length      = Struct.field ; {-# INLINE _length      #-}
-_capacity    = Struct.field ; {-# INLINE _capacity    #-}
-_externalMem = Struct.field ; {-# INLINE _externalMem #-}
-_localMem    = Struct.field ; {-# INLINE _localMem    #-}
+_length      :: Struct.Field "length"
+_capacity    :: Struct.Field "capacity"
+_externalMem :: Struct.Field "externalMem"
+_localMem    :: Struct.Field "localMem"
+_length      = Struct.Field ; {-# INLINE _length      #-}
+_capacity    = Struct.Field ; {-# INLINE _capacity    #-}
+_externalMem = Struct.Field ; {-# INLINE _externalMem #-}
+_localMem    = Struct.Field ; {-# INLINE _localMem    #-}
 
 
 -- === Utils === --
 
 localMem :: Memory.PtrType t => SmallVectorA t alloc n a -> MemChunk t n a
-localMem = wrap . Memory.coercePtr . Struct.fieldPtr _localMem
+localMem = wrap . Memory.coercePtr . unwrap . Struct.ref _localMem
 {-# INLINE localMem #-}
 
 elemsPtr :: (MonadIO m, Memory.PtrType t)
     => SmallVectorA t alloc n a -> m (Memory.UnmanagedPtr a)
 elemsPtr = \a -> do
     isExt <- usesDynamicMemory a
-    if isExt then Struct.readField _externalMem a
+    if isExt then Struct.read _externalMem a
              else pure . Memory.unsafeToUnmanaged . unwrap $ localMem a
 {-# INLINE elemsPtr #-}
 
 usesDynamicMemory :: (MonadIO m, Memory.PtrType t)
     => SmallVectorA t alloc n a -> m Bool
-usesDynamicMemory = fmap (/= Memory.nullPtr) . Struct.readField _externalMem
+usesDynamicMemory = fmap (/= Memory.nullPtr) . Struct.read _externalMem
 {-# INLINE usesDynamicMemory #-}
 
 
@@ -149,9 +149,9 @@ instance (MonadIO m, Memory.PtrType t, Type.KnownInt n)
       => PlacementNew m (SmallVectorA t alloc n a) where
     placementNew = \ptr -> liftIO $ do
         let a = Struct.unsafeCastFromPtr ptr
-        Struct.writeField _length a 0
-        Struct.writeField _capacity a $! Type.val' @n
-        Struct.writeField _externalMem a Memory.nullPtr
+        Struct.write _length a 0
+        Struct.write _capacity a $! Type.val' @n
+        Struct.write _externalMem a Memory.nullPtr
         pure a
     {-# INLINE placementNew #-}
 
@@ -167,19 +167,19 @@ instance
 
 instance (MonadIO m, Memory.PtrType t)
       => Size m (SmallVectorA t alloc n a) where
-    size = Struct.readField _length
+    size = Struct.read _length
     {-# INLINE size #-}
 
 instance (MonadIO m, Memory.PtrType t)
       => Capacity m (SmallVectorA t alloc n a) where
-    capacity = Struct.readField _capacity
+    capacity = Struct.read _capacity
     {-# INLINE capacity #-}
 
 instance (MonadIO m, t ~ 'Memory.Unmanaged)
       => Free m (SmallVectorA t alloc n a) where
     free = \a -> do
         whenM (usesDynamicMemory a)
-            $ Memory.free =<< Struct.readField _externalMem a
+            $ Memory.free =<< Struct.read _externalMem a
         Struct.free a
     {-# INLINE free #-}
 
@@ -225,8 +225,8 @@ instance (MonadIO m, Memory.PtrType t, Storable.KnownConstantSize a, Memory.Unma
         let newElemsPtr = coerce (unwrap newElemsPtr_)
         Memory.copyBytes newElemsPtr ptr bytesToCopy
         whenM (usesDynamicMemory a) $ Memory.free ptr
-        Struct.writeField _capacity a newSize
-        Struct.writeField _externalMem a $! newElemsPtr
+        Struct.write _capacity a newSize
+        Struct.write _externalMem a $! newElemsPtr
     {-# INLINE grow #-}
 
 instance (MonadIO m, Memory.PtrType t, Write m (SmallVectorA t alloc n a), Grow m (SmallVectorA t alloc n a))
@@ -236,7 +236,7 @@ instance (MonadIO m, Memory.PtrType t, Write m (SmallVectorA t alloc n a), Grow 
         cap <- capacity a
         when (siz == cap) $ grow a
         unsafeWrite a siz v
-        Struct.writeField _length a $! siz + 1
+        Struct.write _length a $! siz + 1
     {-# INLINE pushBack #-}
 
 instance
@@ -257,7 +257,7 @@ instance
             byteOff = elSize * (siz - ix)
         when (byteOff > 0) $ Memory.moveBytes ptrIx' ptrIx byteOff
         unsafeWrite a ix v
-        Struct.writeField _length a $! siz + 1
+        Struct.write _length a $! siz + 1
     {-# INLINE insertAt #-}
 
 instance
@@ -273,7 +273,7 @@ instance
             ptrIx'  = ptrIx `Memory.plus` elSize
             byteOff = elSize * (siz - ix - 1)
         when (byteOff > 0) $ liftIO $ Memory.moveBytes ptrIx ptrIx' byteOff
-        Struct.writeField _length a $! siz - 1
+        Struct.write _length a $! siz - 1
     {-# INLINE removeAt #-}
 
 instance (MonadIO m, Memory.PtrType t, IxMap m (SmallVectorA t alloc n a))
@@ -335,7 +335,7 @@ instance
         (newElemsPtr :: Memory.UnmanagedPtr a) <- Memory.allocate @alloc cap
         let newElemsPtr' = coerce (unwrap newElemsPtr)
         Memory.copyBytes newElemsPtr' ptr bytesToCopy
-        Struct.writeField _externalMem a newElemsPtr'
+        Struct.write _externalMem a newElemsPtr'
     {-# INLINE copyInitialize #-}
 
 
@@ -370,6 +370,6 @@ instance (MonadIO m, Memory.PtrType t)
       => Data.Destructor1 m (SmallVectorA t alloc n) where
     destruct1 = \a -> liftIO $ do
         whenM (usesDynamicMemory a)
-            $ Memory.free =<< Struct.readField _externalMem a
+            $ Memory.free =<< Struct.read _externalMem a
     {-# INLINE destruct1 #-}
 
