@@ -15,6 +15,7 @@ import qualified Data.Mutable.Class2              as Mutable
 import qualified Data.Mutable.Plain               as Data
 import qualified Data.Property                    as Property
 import qualified Data.Storable                    as Struct
+import qualified Data.Storable.Definition         as Struct
 import qualified Foreign.Marshal.Alloc            as Mem
 import qualified Foreign.Marshal.Utils            as Mem
 import qualified Foreign.Storable                 as StdStorable
@@ -22,7 +23,7 @@ import qualified Foreign.Storable.Class           as Storable
 import qualified Memory                           as Memory
 import qualified Type.Known                       as Type
 
-import Data.Storable          (type (-::), Struct)
+import Data.Storable          (type (-::))
 import Foreign.Ptr            (Ptr, minusPtr, nullPtr, plusPtr)
 import Foreign.Storable.Class (Copy, Storable, View)
 import Foreign.Storable.Utils (Dynamic, Dynamics)
@@ -69,10 +70,26 @@ instance (Storable.KnownConstantSize a, Type.KnownInt n)
 
 -- === Definition === --
 
+Struct.define [d|
+
+ data SmallVectorA
+      (t     :: Memory.Management)
+      (alloc :: Memory.Allocator)
+      (n     :: Nat)
+      (a     :: Type)
+    = SmallVector
+    { length      :: Int
+    , capacity    :: Int
+    , externalMem :: Memory.UnmanagedPtr a
+    , localMem    :: MemChunk t n a
+    }
+
+ |]
+
 newtype SmallVectorA t (alloc :: Memory.Allocator) (n :: Nat) (a :: Type)
       = SmallVector (SmallVector__ t n a)
 
-type SmallVector__ t (n :: Nat) a = Struct t (Layout t n a)
+type SmallVector__ t (n :: Nat) a = Struct.Product t (Layout t n a)
 type Layout t n a =
    '[ "length"      -:: Int
     , "capacity"    -:: Int

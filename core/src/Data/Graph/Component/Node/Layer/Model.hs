@@ -35,15 +35,16 @@ instance Data.ShallowDestructor1 IO Node.Uni => Layer Model where
 -- === Utils === --
 
 model :: Layer.ViewReader Node Model layout m
-      => Node layout -> m (Layer.ViewData Model layout)
+    => Node layout -> m (Layer.ViewData Model layout)
 model = Layer.readView @Model
 {-# INLINE model #-}
 
-inputs :: ( Layer.Reader Node Model m
-          , Layer.IsUnwrapped Node.Uni
-          , Traversal.SubComponents Edges m (Node.Uni layout)
-          , MonadIO m
-          ) => Node layout -> m (ComponentList Edges)
+inputs ::
+    ( Layer.Reader Node Model m
+    , Layer.IsUnwrapped Node.Uni
+    , Traversal.SubComponents Edges m (Node.Uni layout)
+    , MonadIO m
+    ) => Node layout -> m (ComponentList Edges)
 inputs = Traversal.subComponents @Edges <=< Layer.read @Model
 {-# INLINE inputs #-}
 

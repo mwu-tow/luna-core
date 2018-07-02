@@ -112,56 +112,56 @@ autoLens = \_ -> Field
 
 
 
---------------------
--- === Struct === --
---------------------
+---------------------
+-- === Product === --
+---------------------
 
 -- === Definition === --
 
-type    Struct__ t (fields :: [FieldSig]) = Memory.SomePtr t
-newtype Struct   t (fields :: [FieldSig]) = Struct (Struct__ t fields)
+type    Product__ t (fields :: [FieldSig]) = Memory.SomePtr t
+newtype Product   t (fields :: [FieldSig]) = Product (Product__ t fields)
 
 
 -- === Aliases === --
 
-type ManagedStruct   = Struct 'Memory.Managed
-type UnmanagedStruct = Struct 'Memory.Unmanaged
+type ManagedStruct   = Product 'Memory.Managed
+type UnmanagedStruct = Product 'Memory.Unmanaged
 
 
 -- === Generalization === --
 
 class IsStruct a where
     type Fields a :: [FieldSig]
-    struct :: Iso' a (Struct (Memory.Management a) (Fields a))
+    struct :: Iso' a (Product (Memory.Management a) (Fields a))
 
     type Fields a = Fields (Unwrapped a)
     default struct
-        :: (Wrapped a, Unwrapped a ~ Struct (Memory.Management a) (Fields a))
-        => Iso' a (Struct (Memory.Management a) (Fields a))
+        :: (Wrapped a, Unwrapped a ~ Product (Memory.Management a) (Fields a))
+        => Iso' a (Product (Memory.Management a) (Fields a))
     struct = wrapped'
     {-# INLINE struct #-}
 
-instance IsStruct (Struct t fields) where
-    type Fields (Struct t fields) = fields
+instance IsStruct (Product t fields) where
+    type Fields (Product t fields) = fields
     struct = id
     {-# INLINE struct #-}
 
 
 -- === Instances === --
 
-makeLenses ''Struct
+makeLenses ''Product
 
-type instance Memory.Management (Struct t _) = t
+type instance Memory.Management (Product t _) = t
 
 instance Storable.KnownConstantSize (MapFieldSigType fields)
-      => Storable.KnownConstantSize (Struct t fields) where
+      => Storable.KnownConstantSize (Product t fields) where
     constantSize = Storable.constantSize @(MapFieldSigType fields)
     {-# INLINE constantSize #-}
 
-deriving instance Eq     (Struct__ t fields) => Eq     (Struct t fields)
-deriving instance NFData (Struct__ t fields) => NFData (Struct t fields)
-deriving instance Ord    (Struct__ t fields) => Ord    (Struct t fields)
-deriving instance Show   (Struct__ t fields) => Show   (Struct t fields)
+deriving instance Eq     (Product__ t fields) => Eq     (Product t fields)
+deriving instance NFData (Product__ t fields) => NFData (Product t fields)
+deriving instance Ord    (Product__ t fields) => Ord    (Product t fields)
+deriving instance Show   (Product__ t fields) => Show   (Product t fields)
 
 
 
@@ -354,7 +354,7 @@ free = liftIO . Mem.free . unwrap . unwrap . view struct
 unsafeCastFromPtr :: ∀ a p. IsStruct a
     => Memory.Ptr (Memory.Management a) a -> a
 unsafeCastFromPtr = view (from struct)
-    . Struct @(Memory.Management a) @(Fields a) . Memory.coercePtr
+    . Product @(Memory.Management a) @(Fields a) . Memory.coercePtr
 {-# INLINE unsafeCastFromPtr #-}
 
 
@@ -404,7 +404,7 @@ instance IsStruct a
     cons__ = \alloc f -> do
         ptr <- alloc
         let (!m, !_) = f ptr
-        (Struct ptr ^. from struct) <$ m
+        (Product ptr ^. from struct) <$ m
     {-# INLINE cons__ #-}
 
 
@@ -419,7 +419,7 @@ type Foo = Lens "foo"
 type Bar = Lens "bar"
 type Baz = Lens "baz"
 
-newtype X = X (Struct 'Memory.Unmanaged '["foo" -:: Int, "bar" -:: Int, "baz" -:: Int])
+newtype X = X (Product 'Memory.Unmanaged '["foo" -:: Int, "bar" -:: Int, "baz" -:: Int])
 makeLenses ''X
 
 type instance Memory.Management X = 'Memory.Unmanaged
@@ -438,7 +438,7 @@ baz = autoLens
 xxx :: Lens '["foo", "bar"]
 xxx = foo . bar
 
--- -- -- Struct.Has (Lens "foo") a
+-- -- -- Product.Has (Lens "foo") a
 
 test :: Int -> Int -> Int -> IO X
 test = construct @X
@@ -453,4 +453,16 @@ main = do
     print =<< read foo a
 
     print "end"
+
+
+
+
+-- newtype Y = Y (Sum '[A, B, C])
+
+
+-- data S
+--     = A X
+--     | B Y
+--     | C Z
+
 

@@ -20,8 +20,10 @@ library:
         - base
         - convert
         - luna-foreign-utils
+        - luna-th-builder
         - luna-typelevel
         - prologue >= 3.0.0
+        - template-haskell
 
 default-extensions:
     - AllowAmbiguousTypes
