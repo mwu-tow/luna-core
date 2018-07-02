@@ -15,9 +15,10 @@ import qualified Luna.IR.Term.Format                   as Format
 import qualified OCI.IR.Term.Definition                as Term
 
 -- import Data.Graph.Store.External (ExternalFieldStorable, ExternalStorable)
-import OCI.Data.Name          (Name)
-import OCI.IR.Term.Class      (Terms)
-import OCI.IR.Term.Definition (LinkTo, LinksTo)
+import Data.Vector.Storable.Foreign (Vector)
+import OCI.Data.Name                (Name, Qualified)
+import OCI.IR.Term.Class            (Terms)
+import OCI.IR.Term.Definition       (LinkTo, LinksTo)
 
 -- FIXME: remove when refactoring Cmp instances
 import Luna.IR.Term.Core ()
@@ -34,8 +35,8 @@ type Vec16 = Vec 16 -- FIXME: Storable.derive doesnt support Nat literals
 -- === Helpers === --
 
 data ImportSourceData
-    = Relative (Vec16 Name)
-    | Absolute (Vec16 Name)
+    = Relative Qualified
+    | Absolute Qualified
     | World
     deriving (Eq, Generic, Show)
 Storable.derive     ''ImportSourceData
