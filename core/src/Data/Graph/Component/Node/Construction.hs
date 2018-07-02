@@ -5,12 +5,13 @@ module Data.Graph.Component.Node.Construction where
 
 import Prologue
 
-import qualified Data.Graph.Component.Edge       as Edge
-import qualified Data.Graph.Component.Node.Class as Node
-import qualified Data.Graph.Component.Node.Layer as Layer
-import qualified Data.Graph.Data                 as Component
-import qualified Data.Graph.Data.Layer.Class     as Layer
-import qualified Data.Graph.Data.Layer.Layout    as Layout
+import qualified Data.Graph.Component.Edge             as Edge
+import qualified Data.Graph.Component.Node.Class       as Node
+import qualified Data.Graph.Component.Node.Layer       as Layer
+import qualified Data.Graph.Component.Node.Layer.Model as Model
+import qualified Data.Graph.Data                       as Component
+import qualified Data.Graph.Data.Layer.Class           as Layer
+import qualified Data.Graph.Data.Layer.Layout          as Layout
 
 import Data.Graph.Component.Node.Class (Node, Nodes)
 import Data.Graph.Component.Node.Layer (Model)
@@ -33,7 +34,7 @@ class DefaultType m where
 type UntypedCreator t m =
     ( Component.Creator Nodes   m
     , Layer.Writer  Node  Model m
-    , Layer.IsCons1 Model (Node.TagToCons t)
+    , Layer.IsCons1 Model (Model.Constructor t)
     , Layer.IsUnwrapped Node.Uni
     )
 
@@ -59,7 +60,7 @@ type CreatorX m =
 type LayoutModelCheck tag layout = Layout.Get Model layout ~ tag
 
 uncheckedUntypedNewM :: UntypedCreator tag m
-    => (Node any -> m (Node.TagToCons tag layout)) -> m (Node any)
+    => (Node any -> m (Model.Constructor tag layout)) -> m (Node any)
 uncheckedUntypedNewM !cons = do
     ir <- Component.construct1' @(Component Nodes)
     let !ir' = Layout.unsafeRelayout ir
@@ -69,19 +70,19 @@ uncheckedUntypedNewM !cons = do
 {-# INLINE uncheckedUntypedNewM #-}
 
 untypedNewM :: ( UntypedCreator tag m, LayoutModelCheck tag layout)
-     => (Node layout -> m (Node.TagToCons tag layout)) -> m (Node layout)
+     => (Node layout -> m (Model.Constructor tag layout)) -> m (Node layout)
 untypedNewM = uncheckedUntypedNewM ; {-# INLINE untypedNewM #-}
 
 uncheckedUntypedNew :: UntypedCreator tag m
-                    => Node.TagToCons tag layout -> m (Node any)
+                    => Model.Constructor tag layout -> m (Node any)
 uncheckedUntypedNew = uncheckedUntypedNewM . const . pure ; {-# INLINE uncheckedUntypedNew #-}
 
 untypedNew :: (UntypedCreator tag m, Layout.AssertEQ Model layout tag)
-    => Node.TagToCons tag layout -> m (Node layout)
+    => Model.Constructor tag layout -> m (Node layout)
 untypedNew = uncheckedUntypedNew ; {-# INLINE untypedNew #-}
 
 uncheckedNewM :: Creator tag m
-              => (Node any -> m (Node.TagToCons tag layout)) -> m (Node any)
+              => (Node any -> m (Model.Constructor tag layout)) -> m (Node any)
 uncheckedNewM !cons = uncheckedUntypedNewM $ \self -> do
     typeNode <- defaultType
     typeEdge <- Edge.new typeNode self
@@ -90,8 +91,8 @@ uncheckedNewM !cons = uncheckedUntypedNewM $ \self -> do
 {-# INLINE uncheckedNewM #-}
 
 newM :: (Creator tag m, LayoutModelCheck tag layout)
-     => (Node layout -> m (Node.TagToCons tag layout)) -> m (Node layout)
+     => (Node layout -> m (Model.Constructor tag layout)) -> m (Node layout)
 newM = uncheckedNewM ; {-# INLINE newM #-}
 
-uncheckedNew :: Creator tag m => Node.TagToCons tag layout -> m (Node any)
+uncheckedNew :: Creator tag m => Model.Constructor tag layout -> m (Node any)
 uncheckedNew = uncheckedNewM . const . pure ; {-# INLINE uncheckedNew #-}

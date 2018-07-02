@@ -8,6 +8,7 @@ import qualified Prologue as P
 
 import qualified Data.Char                             as Char
 import qualified Data.Graph.Component.Node.Class       as Term
+import qualified Data.Graph.Component.Node.Layer.Model as Term
 import qualified Data.Mutable.Storable.SmallAutoVector as SmallVector
 import qualified Data.Vector.Storable.Foreign          as Vector
 import qualified Luna.IR.Term.Format                   as Format

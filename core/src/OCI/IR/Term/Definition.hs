@@ -10,6 +10,7 @@ import qualified Data.Generics.Traversable.Deriving     as GTraversable
 import qualified Data.Graph.Component.Edge              as Edge
 import qualified Data.Graph.Component.Node.Class        as Term
 import qualified Data.Graph.Component.Node.Construction as Term
+import qualified Data.Graph.Component.Node.Layer.Model  as Term
 import qualified Data.Graph.Data.Component.Vector       as ComponentVector
 import qualified Data.Graph.Data.Layer.Layout           as Layout
 import qualified Data.Tag                               as Tag
@@ -184,7 +185,7 @@ defineSingleCons dataName con = do
                       . setDerivs
                       $ termDecl
 
-        tagDecls      = Tag.familyInstance' ''Term.NodeTag conNameStr
+        tagDecls      = Tag.familyInstance' ''Term.Tag conNameStr
         isTermTagInst = TH.InstanceD Nothing []
                         (TH.AppT (cons' ''Term.IsTermTag) (cons' tagName))
                         []

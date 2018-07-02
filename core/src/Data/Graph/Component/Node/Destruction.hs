@@ -7,6 +7,7 @@ import qualified Data.Graph.Component.Edge.Class       as Edge
 import qualified Data.Graph.Component.Edge.Destruction as Edge
 import qualified Data.Graph.Component.Node.Class       as Node
 import qualified Data.Graph.Component.Node.Layer       as Node
+import qualified Data.Graph.Component.Node.Utils       as Node (inputs)
 import qualified Data.Graph.Data.Component.Class       as Component
 import qualified Data.Graph.Data.Component.List        as ComponentList
 import qualified Data.Graph.Data.Layer.Class           as Layer

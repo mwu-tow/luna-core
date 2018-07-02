@@ -10,12 +10,32 @@ import qualified Data.Graph.Component.Edge.Class as Edge
 import qualified Data.Graph.Component.Node.Class as Node
 import qualified Data.Graph.Data.Layer.Class     as Layer
 import qualified Data.Graph.Data.Layer.Layout    as Layout
-import qualified Data.Graph.Fold.SubComponents   as Traversal
+import qualified Data.Tag                        as Tag
+import qualified Type.Show                       as Type
 
 import Data.Graph.Component.Edge.Class (Edges)
 import Data.Graph.Component.Node.Class (Node)
 import Data.Graph.Data.Component.List  (ComponentList)
 import Data.Graph.Data.Layer.Class     (Layer)
+
+
+
+-------------------------
+-- === TagOnlyShow === --
+-------------------------
+
+-- === Definition === --
+
+data TagOnly = TagOnly
+type instance StyledShowOutput TagOnly = Text
+
+-- === API === --
+
+type TagOnlyShow = StyledShow TagOnly
+
+showTag :: TagOnlyShow a => a -> Text
+showTag = styledShow TagOnly
+{-# INLINE showTag #-}
 
 
 
@@ -26,9 +46,36 @@ import Data.Graph.Data.Layer.Class     (Layer)
 -- === Definition === --
 
 data Model deriving (Generic)
+Tag.family "Tag"
+
+
+-- === Constructors === --
+
+data family Constructor (tag :: Type) (layout :: Type) :: Type
+-- type family Struct      (tag :: Type) ::
+
+
+-- === Instances === --
+
+instance (name ~ Tag.Instance tag, Type.Show name)
+    => StyledShow TagOnly (Constructor tag layout) where
+    styledShow _ _ = convert $ Type.show @name
+
+type instance Layout.Merge (Tag a) (Tag b) = TagMerge__ a b
+type family TagMerge__ a b where
+    TagMerge__ a a = Tag a
+
+
+
+-------------------
+-- === Model === --
+-------------------
+
+-- === Definition === --
+
 instance Data.ShallowDestructor1 IO Node.Uni => Layer Model where
-    type Cons  Model        = Node.Uni
-    type View  Model layout = Node.TagToCons (Layout.Get Model layout)
+    type Cons Model        = Node.Uni
+    type View Model layout = Constructor (Layout.Get Model layout)
     manager = Layer.unsafeOnlyDestructorManager
 
 
@@ -39,14 +86,7 @@ model :: Layer.ViewReader Node Model layout m
 model = Layer.readView @Model
 {-# INLINE model #-}
 
-inputs ::
-    ( Layer.Reader Node Model m
-    , Layer.IsUnwrapped Node.Uni
-    , Traversal.SubComponents Edges m (Node.Uni layout)
-    , MonadIO m
-    ) => Node layout -> m (ComponentList Edges)
-inputs = Traversal.subComponents @Edges <=< Layer.read @Model
-{-# INLINE inputs #-}
+
 
 
 -- === Instances === --

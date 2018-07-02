@@ -24,8 +24,9 @@ import Data.Graph.Data.Layer.Layout    ((:=), Layout)
 
 -- === Definition === ---
 
-Component.define "Edge"
-type SomeEdge = Component.Some Edges
+data Edges deriving (Generic)
+type Edge     = Component.Component Edges
+type SomeEdge = Component.Some      Edges
 type src *-* tgt = Layout '[Source := src, Target := tgt]
 
 

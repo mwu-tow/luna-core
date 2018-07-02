@@ -3,7 +3,7 @@ module Data.Tag.TH where
 
 import Prologue
 
-import Data.Tag.Class
+import Data.Tag.Class              (Tag)
 import Language.Haskell.TH         as TH
 import Language.Haskell.TH.Builder as THBuilder
 
@@ -66,6 +66,10 @@ familyWithInstances famNameStr subTypeNamesStr = mainDecls <> subDecls
 --   You can always add further instances by using `familyInstance`
 --   `Tag.family "Fam" ["Foo", "Bar"]` will generate closed family.
 --   `Tag.family "Fam"                 will generate open   family.
-class Family a where family :: String -> a
-instance t ~ [String] => Family (t -> Q [TH.Dec]) where family = return .: familyWithInstances
-instance                 Family      (Q [TH.Dec]) where family = return .  familyHeader
+class FamilyCons a where family :: String -> a
+
+instance t ~ [String] => FamilyCons (t -> Q [TH.Dec]) where
+    family = return .: familyWithInstances
+
+instance FamilyCons (Q [TH.Dec]) where
+    family = return .  familyHeader

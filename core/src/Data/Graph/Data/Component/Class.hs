@@ -161,13 +161,6 @@ instance {-# OVERLAPPABLE #-} t ~ t'
       => UnsafeRelayout (Component t l) (Component t' l')
 
 
--- === TH === --
-
-define :: String -> TH.Q [TH.Dec]
-define el = Tag.nonStandardFamilyInstance ''Component el (el <> "s")
-
-
-
 -----------------
 -- === Rep === --
 -----------------

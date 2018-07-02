@@ -1,5 +1,5 @@
 module OCI.IR.Term.Class (module OCI.IR.Term.Class, module X) where
-import Data.Graph.Component.Node.Class as X (showTag)
+import Data.Graph.Component.Node.Layer.Model as X (showTag)
 
 import qualified Data.Graph.Component.Node.Class as Node
 
