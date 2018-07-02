@@ -14,6 +14,7 @@ import qualified Data.Graph.Data.Component.Vector as ComponentVector
 import qualified Data.Graph.Data.Layer.Layout     as Layout
 import qualified Data.Layout                      as Layout
 import qualified Data.Layout                      as Doc
+import qualified Data.Mutable.Class               as Mutable
 import qualified Data.Vector.Storable.Foreign     as Vector
 import qualified Language.Symbol.Operator.Assoc   as Assoc
 import qualified Language.Symbol.Operator.Prec    as Prec
@@ -244,7 +245,7 @@ prettyprintSimple ir = Layer.read @IR.Model ir >>= \case
     IR.UniTermAccSection (IR.AccSection path)
         -> named (notSpaced accName) . Atom
          . ("." <>) . intercalate "." . fmap convert
-       <$> Vector.toList path
+       <$> Mutable.toList path
     IR.UniTermApp  (IR.App f a)         -> join $ appSymbols <$> subgen f <*> subgen a
     IR.UniTermBlank IR.Blank            -> pure $ simple wildcardName
     IR.UniTermCons (IR.Cons name args)  -> do
@@ -280,7 +281,7 @@ prettyprintSimple ir = Layer.read @IR.Model ir >>= \case
         -> simple . parensed .: flip (<+>) <$> subgenBody op <*> subgenBody a
     IR.UniTermSeq (IR.Seq a b) -> simple .: (</>) <$> subgenBody a <*> subgenBody b
     IR.UniTermRawString (IR.RawString s)
-        -> simple . quoted . convert . concat . fmap escape <$> Vector.toList s where -- FIXME [WD]: add proper multi-line strings indentation
+        -> simple . quoted . convert . concat . fmap escape <$> Mutable.toList s where -- FIXME [WD]: add proper multi-line strings indentation
         escape = \case
             '"'  -> "\\\""
             '\\' -> "\\\\"
@@ -288,7 +289,7 @@ prettyprintSimple ir = Layer.read @IR.Model ir >>= \case
     IR.UniTermFmtString (IR.FmtString elems)
         -> simple . singleQuoted . mconcat <$> (mapM subgen =<< ComponentVector.toList elems) where
                subgen a = (Layer.read @IR.Model <=< Link.source) a >>= \case
-                   IR.UniTermRawString (IR.RawString s) -> convert . concat . fmap escape <$> Vector.toList s
+                   IR.UniTermRawString (IR.RawString s) -> convert . concat . fmap escape <$> Mutable.toList s
                    _ -> backticked <$> subgenBody a
                escape = \case
                     '\'' -> "\\'"
@@ -314,7 +315,7 @@ prettyprintSimple ir = Layer.read @IR.Model ir >>= \case
                 -> unnamed . Atom .: go <$> subgenBody im
                                         <*> (mapM subgenBody =<< ComponentVector.toList ds)
                 where go imps defs = let glue = ""
-                        in  imps <> glue <> foldl (</>) mempty defsz
+                        in  imps <> glue <> foldl (</>) mempty defs
 
     IR.UniTermVar (IR.Var name) -> Scope.lookupMultipartName name <&> \case
         Just (n:|ns) -> labeled Nothing $ Mixfix (convert n) ns

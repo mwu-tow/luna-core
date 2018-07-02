@@ -196,8 +196,8 @@ dynamicManager = Manager Nothing
                  (Just Data.destructShallow1)
 {-# INLINE dynamicManager #-}
 
--- customStaticManager :: (∀ layout. Cons layer layout) -> Manager layer
--- customStaticManager !t = Manager (Just t) Nothing ; {-# INLINE customStaticManager #-}
+customStaticManager :: (∀ layout. IO (Cons layer layout)) -> Manager layer
+customStaticManager !t = Manager (Just t) Nothing ; {-# INLINE customStaticManager #-}
 
 -- customDynamicManager :: (∀ layout. IO (Cons layer layout))
 --                      -> (∀ layout. Cons layer layout -> IO ())
