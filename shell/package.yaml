@@ -11,9 +11,6 @@ library:
         - directory
         - filepath
         - layered-state
-        - luna-package-configuration
-        - luna-package-resolver
-        - luna-package-structure
         - optparse-applicative
         - prologue
         - text
