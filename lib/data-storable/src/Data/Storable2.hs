@@ -3,7 +3,7 @@
 
 module Data.Storable2 where
 
-import Prologue hiding (Lens, lens, read)
+import Prologue hiding (Generic, Lens, lens, read)
 
 import qualified Data.Convert2.Class    as Convert
 import qualified Foreign.ForeignPtr     as ForeignPtr
@@ -11,6 +11,7 @@ import qualified Foreign.Marshal.Alloc  as Mem
 import qualified Foreign.Marshal.Utils  as Mem
 import qualified Foreign.Ptr            as Ptr
 import qualified Foreign.Storable.Class as Storable
+import qualified GHC.Generics           as Generics
 import qualified Memory                 as Memory
 import qualified Type.Data.List         as List
 import qualified Type.Data.Maybe        as Type
@@ -20,6 +21,7 @@ import Foreign.ForeignPtr        (ForeignPtr, plusForeignPtr, touchForeignPtr)
 import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Ptr               (plusPtr)
 import Foreign.Storable.Class    (Storable)
+import GHC.Generics              ((:*:))
 import Type.Data.List            (type (<>))
 
 
@@ -32,7 +34,6 @@ data Fieldx
 
 
 
-data Label (label :: Symbol)
 
 
 
@@ -50,13 +51,13 @@ makeLenses ''FieldRef
 
 
 
--------------------
--- === FieldPath === --
--------------------
+------------------
+-- === Path === --
+------------------
 
 -- === Definition === --
 
-data FieldPath (path :: [Type]) = FieldPath
+data Path (path :: [Type]) = Path
 
 data FieldSig = FieldSig Type Type
 type name -:: tp = 'FieldSig name tp
@@ -83,32 +84,77 @@ instance Storable.KnownConstantSize a
 type family FieldIdx key layout :: Maybe Nat
 type family Fields   a :: [Type]
 
--- type family LookupFieldType path layout where
---     LookupFieldType = Fields layout
-
-
-
 type family FieldType path a where
-    FieldType path Imp              = Imp
-    FieldType (FieldPath '[])       a = a
-    FieldType (FieldPath (f ': fs)) a = FieldType (FieldPath fs)
+    FieldType path Imp                = Imp
+    FieldType (Path '[])       a = a
+    FieldType (Path (f ': fs)) a = FieldType (Path fs)
         (LookupFieldType (FieldIdx f (Layout a)) (Fields (Layout a)))
-    -- FieldType path           a
-    --     = LookupFieldType (FieldIdx path (Layout a)) (Fields (Layout a))
-
-
 
 type family LookupFieldType idx (fields :: [Type]) where
     LookupFieldType ('Just idx) fields = List.Index' idx fields
-    -- LookupFieldType (FieldPath (n ': ns)) (('FieldSig n v) ': _)
-    --     = FieldType (FieldPath ns) v
-    -- LookupFieldType field (_ ': fs) = LookupFieldType field fs
 
 
 
----
+-----------------------
+-- === FieldList === --
+-----------------------
+
+-- === Definition === --
+
 data FieldList (layout :: [FieldSig])
 
+
+-- === Instances === --
+
+type instance Fields (FieldList lst) = MapFieldSigType lst
+
+
+
+data Generic a
+
+type instance Fields (Generic a) = MapFieldSigType (GenericFieldSig__ a)
+type GenericFieldSig__ a         = GenericFields__ (Generics.Rep a)
+
+type family GenericFields__ (g :: Type -> Type) :: [FieldSig] where
+    GenericFields__ (a :*: b)         = GenericFields__ a <> GenericFields__ b
+    GenericFields__ (Generics.D1 _ a) = GenericFields__ a
+    GenericFields__ (Generics.C1 _ a) = GenericFields__ a
+    GenericFields__
+        (Generics.S1 ('Generics.MetaSel ('Just name) _ _ _) (Generics.Rec0 a))
+        = '[Label name -:: a]
+    GenericFields__
+        (Generics.S1 ('Generics.MetaSel 'Nothing _ _ _) (Generics.Rec0 a))
+        = '[Unlabeled -:: a]
+
+instance Storable.KnownConstantSize (Fields (Generic a))
+      => Storable.KnownConstantSize (Generic a) where
+    constantSize = Storable.constantSize @(Fields (Generic a))
+    {-# INLINE constantSize #-}
+
+
+
+----------------------------
+-- === FieldAccessors === --
+----------------------------
+
+-- === Idx === --
+
+data Idx (idx :: Nat)
+type instance FieldIdx (Idx idx) _ = 'Just idx
+
+
+-- === Label === --
+
+data Unlabeled
+data Label (label :: Symbol)
+
+type instance FieldIdx (Label s) (FieldList lst) = FieldListIdx (Label s) lst
+type family   FieldListIdx s lst where
+    FieldListIdx s ((s -:: v) ': _) = 'Just 0
+    FieldListIdx s ((t -:: _) ': l) = Type.SuccMaybe (FieldListIdx s l)
+    FieldListIdx _ _                = 'Nothing
+
+type instance FieldIdx (Label s) (Generic a) = FieldIdx (Label s) (FieldList (GenericFieldSig__ a))
 
 
 ------------------
@@ -117,7 +163,7 @@ data FieldList (layout :: [FieldSig])
 
 -- === Definition === --
 
-type Lens t = (∀ a. FieldPath a -> FieldPath (ToPath t <> a))
+type Lens t = (∀ a. Path a -> Path (ToPath t <> a))
 
 type family ToPath (s :: k) :: [Type] where
     ToPath (s :: Type)   = '[s]
@@ -126,14 +172,14 @@ type family ToPath (s :: k) :: [Type] where
 
 -- === Utils === --
 
-type AppliedLens a = FieldPath '[] -> a
+type AppliedLens a = Path '[] -> a
 
 lens :: ∀ s. Lens s
-lens = \_ -> FieldPath
+lens = \_ -> Path
 {-# INLINE lens #-}
 
-autoLens :: FieldPath a -> FieldPath b
-autoLens = \_ -> FieldPath
+autoLens :: Path a -> Path b
+autoLens = \_ -> Path
 {-# INLINE autoLens #-}
 
 
@@ -260,7 +306,7 @@ instance (Has field a, FieldRefPoke (Memory.Management a) (FieldType field a))
 
 -- === Early resolution block === --
 
-type ImpField = FieldPath '[Imp]
+type ImpField = Path '[Imp]
 instance {-# OVERLAPPABLE #-} Reader ImpField a   where readFieldIO = impossible
 instance {-# OVERLAPPABLE #-} Reader field    Imp where readFieldIO = impossible
 
@@ -303,7 +349,7 @@ class HasField__
     (idx    :: Maybe Nat) where
     byteOffset__ :: Int
 
-instance HasCtx a => Has (FieldPath '[]) a where
+instance HasCtx a => Has (Path '[]) a where
     byteOffset = 0
     {-# INLINE byteOffset #-}
 
@@ -312,7 +358,7 @@ instance
     , idx    ~ FieldIdx field layout
     , HasCtx a
     , HasField__ field fields layout idx
-    ) => Has (FieldPath (field ': fields)) a where
+    ) => Has (Path (field ': fields)) a where
     byteOffset = byteOffset__ @field @fields @layout @idx
     {-# INLINE byteOffset #-}
 
@@ -320,7 +366,7 @@ instance {-# OVERLAPPABLE #-}
     ( types    ~ Fields layout
     , types'   ~ List.Take   idx types
     , tgtType  ~ List.Index' idx types
-    , tgtField ~ FieldPath fields
+    , tgtField ~ Path fields
     , Storable.KnownConstantSize types'
     , Has tgtField tgtType
     ) => HasField__ field fields layout ('Just idx) where
@@ -439,13 +485,7 @@ instance IsStruct a
 
 
 
-type instance Fields (FieldList lst) = MapFieldSigType lst
 
-type instance FieldIdx (Label s) (FieldList lst) = FieldListIdx (Label s) lst
-type family   FieldListIdx s lst where
-    FieldListIdx s ((s -:: v) ': _) = 'Just 0
-    FieldListIdx s ((t -:: _) ': l) = Type.SuccMaybe (FieldListIdx s l)
-    FieldListIdx _ _                = 'Nothing
 
 -- type instance Storable.KnownConstantSize (FieldList lst)
 --    = Storable.KnownConstantSize lst
@@ -461,36 +501,51 @@ type Baz = Lens "baz"
 
 newtype X = X (Product 'Memory.Unmanaged (FieldList '[Label "foo" -:: Int, Label "bar" -:: Int, Label "baz" -:: Int]))
 makeLenses ''X
-
 type instance Memory.Management X = 'Memory.Unmanaged
-
 instance IsStruct X
 
-foo :: Lens (Label "foo")
+
+data YD = YD
+    { yfoo :: Int
+    , ybar :: Int
+    , ybaz :: Int
+    } deriving (Generics.Generic)
+
+newtype Y = Y (Product 'Memory.Unmanaged (Generic YD))
+makeLenses ''Y
+type instance Memory.Management Y = 'Memory.Unmanaged
+instance IsStruct Y
+
+
+foo :: Lens (Label "yfoo")
 foo = autoLens
 
-bar :: Lens (Label "bar")
+bar :: Lens (Label "ybar")
 bar = autoLens
 
-baz :: Lens (Label "baz")
+baz :: Lens (Label "ybaz")
 baz = autoLens
 
-xxx :: Lens '[Label "foo", Label "bar"]
+xxx :: Lens '[Label "yfoo", Label "ysbar"]
 xxx = foo . bar
 
 -- -- -- Product.Has (Lens "foo") a
 
-test :: Int -> Int -> Int -> IO X
-test = construct @X
+xcons :: Int -> Int -> Int -> IO X
+xcons = construct @X
+
+ycons :: Int -> Int -> Int -> IO Y
+ycons = construct @Y
 
 main :: IO ()
 main = do
-    a <- test 1 2 3
+    a <- ycons 1 2 3
     print =<< read foo a
     print =<< read bar a
     print =<< read baz a
     write foo a 10
     print =<< read foo a
+    print =<< read (autoLens :: Lens (Idx 1)) a
 
     print "end"
 
@@ -504,5 +559,6 @@ main = do
 --     = A X
 --     | B Y
 --     | C Z
+
 
 

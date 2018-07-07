@@ -43,6 +43,7 @@ import Luna.Pass                             (Pass)
 import Luna.Pass.Basic                       (Compilation)
 import Test.Hspec                            (Spec, describe, it)
 
+import qualified Data.Storable2 as Struct2
 
 import Data.Graph2.Class ()
 
@@ -186,6 +187,10 @@ irDiscoverySpec = describe "traversal" $ do
                        , Layout.relayout ttpl
                        ]
         termSet `shouldBe` allNodes
+
+        print "-------"
+        liftIO Struct2.main
+        True `shouldBe` False
 
 -- partitionSpec :: Spec
 -- partitionSpec = describe "Component children partition" $ do
