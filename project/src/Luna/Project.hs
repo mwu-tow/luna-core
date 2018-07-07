@@ -48,7 +48,7 @@ findProjectRootForFile :: (MonadIO m, MonadThrow m)
                        => Path Abs File -> m (Maybe (Path Abs Dir))
 findProjectRootForFile = findProjectRoot . Path.parent
 
-data ProjectNotFoundException = ProjectNotFoundException (Path Abs File)
+newtype ProjectNotFoundException = ProjectNotFoundException (Path Abs File)
     deriving Show
 
 instance Exception ProjectNotFoundException where
@@ -59,7 +59,7 @@ projectRootForFile :: (MonadIO m, MonadThrow m)
                    => Path Abs File -> m (Path Abs Dir)
 projectRootForFile file = do
     maybeRoot <- findProjectRoot $ Path.parent file
-    maybe (throwM (ProjectNotFoundException file)) return maybeRoot
+    maybe (throwM (ProjectNotFoundException file)) pure maybeRoot
 
 findProjectFileForFile :: (MonadIO m, MonadThrow m)
                        => Path Abs File -> m (Maybe (Path Abs File))
@@ -81,31 +81,32 @@ getLunaProjectsFromDir :: (MonadIO m, MonadThrow m)
 getLunaProjectsFromDir dir = do
     filesInDir <- liftIO $ Dir.listDirectory (Path.toFilePath dir)
     files      <- mapM Path.parseRelFile filesInDir
-    return . fmap (dir </>)
+    pure . fmap (dir </>)
            $ filter (\file -> Path.fileExtension file == projectExt) files
 
 findProjectFile :: (MonadIO m, MonadThrow m)
                 => Path Abs Dir -> m (Maybe (Path Abs File))
 findProjectFile dir = getLunaProjectsFromDir dir >>= \case
     [] -> let parentDir = Path.parent dir in
-        if parentDir == dir then return Nothing else findProjectFile parentDir
-    [projectFile] -> return $ Just projectFile
-    _             -> return Nothing
+        if parentDir == dir then pure Nothing else findProjectFile parentDir
+    [projectFile] -> pure $ Just projectFile
+    _             -> pure Nothing
 
 findProjectRoot :: (MonadIO m, MonadThrow m)
                 => Path Abs Dir -> m (Maybe (Path Abs Dir))
 findProjectRoot dir = getLunaProjectsFromDir dir >>= \case
     [] -> let parentDir = Path.parent dir in
-        if parentDir == dir then return Nothing else findProjectRoot parentDir
-    [projectFile] -> return $ Just dir
-    _             -> return Nothing
+        if parentDir == dir then pure Nothing else findProjectRoot parentDir
+    [_] -> pure $ Just dir
+    _             -> pure Nothing
 
 getProjectName :: Path Abs Dir -> Name
-getProjectName = convert . FilePath.takeBaseName . FilePath.takeDirectory . Path.toFilePath
+getProjectName =
+    convert . FilePath.takeBaseName . FilePath.takeDirectory . Path.toFilePath
 
 mkQualName :: Name -> Path Rel File -> Name.Qualified
 mkQualName projectName file = qualName where
-    qualName        = convert $ concat $ [ [projectName]
+    qualName        = convert $ concat [ [projectName]
                                          , convert <$> path
                                          , [convert moduleName]
                                          ]
@@ -113,11 +114,13 @@ mkQualName projectName file = qualName where
     moduleName      = FilePath.dropExtensions filename
     (dir, filename) = FilePath.splitFileName (Path.toFilePath file)
 
-assignQualName :: Path Abs Dir -> Path Abs File -> (Path Abs File, Name.Qualified)
+assignQualName :: Path Abs Dir -> Path Abs File
+               -> (Path Abs File, Name.Qualified)
 assignQualName project filePath = (filePath, qualName)
     where
         qualName         = mkQualName (getProjectName project) relFileName
-        Just relFileName = Path.stripDir (project </> sourceDirectory) filePath
+        Just relFileName =
+            Path.stripProperPrefix (project </> sourceDirectory) filePath
 
 findProjectSources :: (MonadIO m, MonadThrow m)
                    => Path Abs Dir -> m (Bimap (Path Abs File) Name.Qualified)
@@ -126,22 +129,22 @@ findProjectSources project = do
         lunaFilePredicate = Find.extension Find.~~? lunaFileExt
     lunaFiles    <- liftIO $ Find.find Find.always lunaFilePredicate srcDir
     lunaFilesAbs <- mapM Path.parseAbsFile lunaFiles
-    let modules  = map (assignQualName project) lunaFilesAbs
-    return $ Bimap.fromList modules
+    let modules  = assignQualName project <$> lunaFilesAbs
+    pure $ Bimap.fromList modules
 
 listDependencies :: (MonadIO m, MonadThrow m)
                  => Path Abs Dir -> m [(Name, FilePath.FilePath)]
 listDependencies projectSrc = do
     let lunaModules     = projectSrc </> localLibsPath
         lunaModulesPath = Path.toFilePath lunaModules
-    dependencies <- liftIO $ tryAny $ Dir.listDirectory lunaModulesPath
+    dependencies <- liftIO . tryAny $ Dir.listDirectory lunaModulesPath
     case dependencies of
-        Left exc         -> return []
+        Left _           -> pure []
         Right directDeps -> do
             indirectDeps <- for directDeps $ \proj -> do
                 path <- Path.parseRelDir proj
                 listDependencies (lunaModules </> path)
-            return $ map (convert &&& (lunaModulesPath FilePath.</>)) directDeps
+            pure $ fmap (convert &&& (lunaModulesPath FilePath.</>)) directDeps
                   <> concat indirectDeps
 
 projectImportPaths :: (MonadIO m, MonadThrow m)
@@ -152,4 +155,4 @@ projectImportPaths projectRoot = do
     let importPaths = ("Std", lunaroot <> "/Std/")
                     : (getProjectName &&& Path.toFilePath) projectRoot
                     : dependencies
-    return importPaths
+    pure importPaths

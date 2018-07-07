@@ -10,7 +10,9 @@ library:
         - base
         - directory
         - filepath
+        - path
         - layered-state
+        - luna-project
         - optparse-applicative
         - prologue
         - text

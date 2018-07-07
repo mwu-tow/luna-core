@@ -21,7 +21,7 @@ import Options.Applicative  (Parser)
 
 parseLunaCommand :: Parser Command
 parseLunaCommand = Options.hsubparser
-    (  Options.command "run" (Options.info run
+    (Options.command "run" (Options.info run
         (Options.progDesc "Execute a luna package, or standalone file.")))
 
 run :: Parser Command
