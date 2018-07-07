@@ -11,10 +11,6 @@ import qualified Luna.Shell.Option                 as Option
 -- TODO [Ara] Gracefully display errors (once TC integrated).
 -- TODO [Ara] Edit project module to help.
 
--- TODO [Ara] One single command `luna run` for now. If in project it runs the
--- project, else expects a path (to package or standalone file)
--- TODO [Ara] Check provided FOLDER is actually a project.
-
 ------------------
 -- === Main === --
 ------------------

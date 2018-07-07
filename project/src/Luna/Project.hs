@@ -156,3 +156,8 @@ projectImportPaths projectRoot = do
                     : (getProjectName &&& Path.toFilePath) projectRoot
                     : dependencies
     pure importPaths
+
+isLunaProject :: (MonadIO m, MonadThrow m)
+              => Path Abs Dir -> m Bool
+isLunaProject path = isJust <$> findProjectRoot path
+

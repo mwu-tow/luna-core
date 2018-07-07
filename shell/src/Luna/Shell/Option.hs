@@ -26,10 +26,7 @@ parseLunaCommand = Options.hsubparser
 
 run :: Parser Command
 run = Command.Run <$> (Command.RunOpts
-    <$> Options.strOption (Options.long "file"
+    <$> Options.strOption (Options.long "target"
         <> Options.metavar "FILE/FOLDER" <> Options.value ""
-        <> Options.help "Execute FILE in interpreted mode.")
-    <*> Options.strOption (Options.long "project"
-        <> Options.metavar "FOLDER" <> Options.value ""
-        <> Options.help "Execute the project in FOLDER." ))
+        <> Options.help "Execute FILE/FOLDER in interpreted mode."))
 

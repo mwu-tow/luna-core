@@ -7,7 +7,7 @@ import qualified Luna.Project                as Project
 import qualified Path                        as Path
 import qualified System.Directory            as Directory
 
-import Path              (Path, Abs, Rel, File, Dir, (</>))
+import Path              (Path, Abs, File, Dir)
 import System.IO         (hPutStrLn, stderr)
 
 -------------------------------
@@ -43,24 +43,34 @@ makeLenses ''RunOpts
 
 -- === API === --
 
--- TODO [Ara] Run based on inputs
 run :: ConfigStateIO m => RunOpts -> m ()
 run (RunOpts target) = liftIO $ catch compute recover where
     compute =
         if not $ null target then do
-            -- TODO [Ara] Parse the path
-            -- TODO [Ara] Check is a file
             canonicalPath <- liftIO $ Directory.canonicalizePath target
-            filePath <- Path.parseAbsFile canonicalPath
-            putStrLn "File"
-            print filePath
+            fileExists    <- liftIO $ Directory.doesFileExist canonicalPath
+            projectExists <- liftIO $ Directory.doesDirectoryExist canonicalPath
+
+            if fileExists then do
+                filePath <- Path.parseAbsFile canonicalPath
+                if Path.fileExtension filePath /= Project.lunaFileExt then
+                    hPutStrLn stderr $ canonicalPath <> " is not a Luna file."
+                else putStrLn $ "Interpreting File: " <> target
+            else if projectExists then runProject canonicalPath
+            else hPutStrLn stderr $ target <> " not found."
         else do
-            cwd <- liftIO $ Directory.getCurrentDirectory
-            pathCwd <- Path.parseAbsDir cwd
-            putStrLn "Foo"
+            cwd <- liftIO Directory.getCurrentDirectory
+            runProject cwd
 
     -- TODO This can be done much better.
     recover (e :: SomeException) = hPutStrLn stderr $ displayException e
+
+    runProject path = do
+        projectPath <- Path.parseAbsDir path
+        isLunaProject <- Project.isLunaProject projectPath
+
+        if isLunaProject then putStrLn $ "Interpreting Project: " <> path
+        else hPutStrLn stderr $ path <> " is not a Luna Project."
 
 
 
