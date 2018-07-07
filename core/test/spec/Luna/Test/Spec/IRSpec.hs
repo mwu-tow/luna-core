@@ -44,6 +44,7 @@ import Luna.Pass.Basic                       (Compilation)
 import Test.Hspec                            (Spec, describe, it)
 
 
+import Data.Graph2.Class ()
 
 -----------------------
 -- === Test pass === --
