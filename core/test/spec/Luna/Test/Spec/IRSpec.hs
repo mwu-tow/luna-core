@@ -10,6 +10,7 @@ import Test.Hspec.Expectations.Lifted
 import qualified Control.Monad.Exception               as Exception
 import qualified Data.Generics.Traversable             as GTraversable
 import qualified Data.Graph.Component.Edge.Class       as Edge
+import qualified Data.Graph.Data.Component.Class       as Component
 import qualified Data.Graph.Data.Component.Set         as PtrSet
 import qualified Data.Graph.Data.Graph.Class           as Graph
 import qualified Data.Graph.Data.Layer.Layout          as Layout
@@ -390,88 +391,88 @@ subIRTest2 =  describe "subir" $ it "test2" $ runPass' $ do
     v1_tpl    <- Layer.read @IR.Type v1
     v1_tp     <- Layer.read @IR.Source v1_tpl
     v1_ttpl   <- Layer.read @IR.Type v1_tp
-    v1_users  <- Layer.read @IR.Users v1
-    v1_tp_users  <- Layer.read @IR.Users v1_tp
+    v1_users  <- Mutable.toList =<< Layer.read @IR.Users v1
+    v1_tp_users  <- Mutable.toList =<< Layer.read @IR.Users v1_tp
 
     v2_tpl    <- Layer.read @IR.Type v2
     v2_tp     <- Layer.read @IR.Source v2_tpl
     v2_ttpl   <- Layer.read @IR.Type v2_tp
-    v2_users  <- Layer.read @IR.Users v2
-    v2_tp_users  <- Layer.read @IR.Users v2_tp
+    v2_users  <- Mutable.toList =<< Layer.read @IR.Users v2
+    v2_tp_users  <- Mutable.toList =<< Layer.read @IR.Users v2_tp
 
     v3_tpl    <- Layer.read @IR.Type v3
     v3_tp     <- Layer.read @IR.Source v3_tpl
     v3_ttpl   <- Layer.read @IR.Type v3_tp
-    v3_users  <- Layer.read @IR.Users v3
-    v3_tp_users  <- Layer.read @IR.Users v3_tp
+    v3_users  <- Mutable.toList =<< Layer.read @IR.Users v3
+    v3_tp_users  <- Mutable.toList =<< Layer.read @IR.Users v3_tp
 
     IR.Lam l1_A l1_B <- IR.model l1
     l1_tpl    <- Layer.read @IR.Type l1
     l1_tp     <- Layer.read @IR.Source l1_tpl
     l1_ttpl   <- Layer.read @IR.Type l1_tp
-    l1_users  <- Layer.read @IR.Users l1
-    l1_tp_users  <- Layer.read @IR.Users l1_tp
+    l1_users  <- Mutable.toList =<< Layer.read @IR.Users l1
+    l1_tp_users  <- Mutable.toList =<< Layer.read @IR.Users l1_tp
 
     IR.Lam l2_A l2_B <- IR.model l2
     l2_tpl    <- Layer.read @IR.Type l2
     l2_tp     <- Layer.read @IR.Source l2_tpl
     l2_ttpl   <- Layer.read @IR.Type l2_tp
-    l2_users  <- Layer.read @IR.Users l2
-    l2_tp_users  <- Layer.read @IR.Users l2_tp
+    l2_users  <- Mutable.toList =<< Layer.read @IR.Users l2
+    l2_tp_users  <- Mutable.toList =<< Layer.read @IR.Users l2_tp
 
     IR.Grouped g_A <- IR.model g
     g_tpl    <- Layer.read @IR.Type g
     g_tp     <- Layer.read @IR.Source g_tpl
     g_ttpl   <- Layer.read @IR.Type g_tp
-    g_users  <- Layer.read @IR.Users g
-    g_tp_users  <- Layer.read @IR.Users g_tp
+    g_users  <- Mutable.toList =<< Layer.read @IR.Users g
+    g_tp_users  <- Mutable.toList =<< Layer.read @IR.Users g_tp
 
-    putStrLn $ "v1           = " <> show v1
-    putStrLn $ "v1_tpl       = " <> show v1_tpl
-    putStrLn $ "v1_tp        = " <> show v1_tp
-    putStrLn $ "v1_ttpl      = " <> show v1_ttpl
-    putStrLn $ "v1_users     = " <> show v1_users
-    putStrLn $ "v1_tp_users  = " <> show v1_tp_users
-    putStrLn ""
-    putStrLn $ "v2           = " <> show v2
-    putStrLn $ "v2_tpl       = " <> show v2_tpl
-    putStrLn $ "v2_tp        = " <> show v2_tp
-    putStrLn $ "v2_ttpl      = " <> show v2_ttpl
-    putStrLn $ "v2_users     = " <> show v2_users
-    putStrLn $ "v2_tp_users  = " <> show v2_tp_users
-    putStrLn ""
-    putStrLn $ "v3           = " <> show v3
-    putStrLn $ "v3_tpl       = " <> show v3_tpl
-    putStrLn $ "v3_tp        = " <> show v3_tp
-    putStrLn $ "v3_ttpl      = " <> show v3_ttpl
-    putStrLn $ "v3_users     = " <> show v3_users
-    putStrLn $ "v3_tp_users  = " <> show v3_tp_users
-    putStrLn ""
-    putStrLn $ "l1          = " <> show l1
-    putStrLn $ "l1_A        = " <> show l1_A
-    putStrLn $ "l1_B        = " <> show l1_B
-    putStrLn $ "l1_tpl      = " <> show l1_tpl
-    putStrLn $ "l1_tp       = " <> show l1_tp
-    putStrLn $ "l1_ttpl     = " <> show l1_ttpl
-    putStrLn $ "l1_users    = " <> show l1_users
-    putStrLn $ "l1_tp_users = " <> show l1_tp_users
-    putStrLn ""
-    putStrLn $ "l2          = " <> show l2
-    putStrLn $ "l2_A        = " <> show l2_A
-    putStrLn $ "l2_B        = " <> show l2_B
-    putStrLn $ "l2_tpl      = " <> show l2_tpl
-    putStrLn $ "l2_tp       = " <> show l2_tp
-    putStrLn $ "l2_ttpl     = " <> show l2_ttpl
-    putStrLn $ "l2_users    = " <> show l2_users
-    putStrLn $ "l2_tp_users = " <> show l2_tp_users
-    putStrLn ""
-    putStrLn $ "g          = " <> show g
-    putStrLn $ "g_A        = " <> show g_A
-    putStrLn $ "g_tpl      = " <> show g_tpl
-    putStrLn $ "g_tp       = " <> show g_tp
-    putStrLn $ "g_ttpl     = " <> show g_ttpl
-    putStrLn $ "g_users    = " <> show g_users
-    putStrLn $ "g_tp_users = " <> show g_tp_users
+    -- putStrLn $ "v1           = " <> show v1
+    -- putStrLn $ "v1_tpl       = " <> show v1_tpl
+    -- putStrLn $ "v1_tp        = " <> show v1_tp
+    -- putStrLn $ "v1_ttpl      = " <> show v1_ttpl
+    -- putStrLn $ "v1_users     = " <> show v1_users
+    -- putStrLn $ "v1_tp_users  = " <> show v1_tp_users
+    -- putStrLn ""
+    -- putStrLn $ "v2           = " <> show v2
+    -- putStrLn $ "v2_tpl       = " <> show v2_tpl
+    -- putStrLn $ "v2_tp        = " <> show v2_tp
+    -- putStrLn $ "v2_ttpl      = " <> show v2_ttpl
+    -- putStrLn $ "v2_users     = " <> show v2_users
+    -- putStrLn $ "v2_tp_users  = " <> show v2_tp_users
+    -- putStrLn ""
+    -- putStrLn $ "v3           = " <> show v3
+    -- putStrLn $ "v3_tpl       = " <> show v3_tpl
+    -- putStrLn $ "v3_tp        = " <> show v3_tp
+    -- putStrLn $ "v3_ttpl      = " <> show v3_ttpl
+    -- putStrLn $ "v3_users     = " <> show v3_users
+    -- putStrLn $ "v3_tp_users  = " <> show v3_tp_users
+    -- putStrLn ""
+    -- putStrLn $ "l1          = " <> show l1
+    -- putStrLn $ "l1_A        = " <> show l1_A
+    -- putStrLn $ "l1_B        = " <> show l1_B
+    -- putStrLn $ "l1_tpl      = " <> show l1_tpl
+    -- putStrLn $ "l1_tp       = " <> show l1_tp
+    -- putStrLn $ "l1_ttpl     = " <> show l1_ttpl
+    -- putStrLn $ "l1_users    = " <> show l1_users
+    -- putStrLn $ "l1_tp_users = " <> show l1_tp_users
+    -- putStrLn ""
+    -- putStrLn $ "l2          = " <> show l2
+    -- putStrLn $ "l2_A        = " <> show l2_A
+    -- putStrLn $ "l2_B        = " <> show l2_B
+    -- putStrLn $ "l2_tpl      = " <> show l2_tpl
+    -- putStrLn $ "l2_tp       = " <> show l2_tp
+    -- putStrLn $ "l2_ttpl     = " <> show l2_ttpl
+    -- putStrLn $ "l2_users    = " <> show l2_users
+    -- putStrLn $ "l2_tp_users = " <> show l2_tp_users
+    -- putStrLn ""
+    -- putStrLn $ "g          = " <> show g
+    -- putStrLn $ "g_A        = " <> show g_A
+    -- putStrLn $ "g_tpl      = " <> show g_tpl
+    -- putStrLn $ "g_tp       = " <> show g_tp
+    -- putStrLn $ "g_ttpl     = " <> show g_ttpl
+    -- putStrLn $ "g_users    = " <> show g_users
+    -- putStrLn $ "g_tp_users = " <> show g_tp_users
 
     -- print "!!!"
     -- print . IR.showTag =<< Layer.read @IR.Model v
@@ -488,13 +489,13 @@ spec = do
 
     -- testVec
     -- testSet
-        -- test
-        -- nameSpec
-        -- irCreationSpec
-        -- attribsSpec
-        -- irDestructSpec
-        -- irDiscoverySpec
-        -- delTest
+    test
+    nameSpec
+    irCreationSpec
+    attribsSpec
+    irDestructSpec
+    irDiscoverySpec
+    delTest
     subIRTest2
     -- partitionSpec
 

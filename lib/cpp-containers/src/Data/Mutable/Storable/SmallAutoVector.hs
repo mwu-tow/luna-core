@@ -327,7 +327,7 @@ instance
         ptr       <- elemsPtr a
         let elemByteSize  = Storable.constantSize @a
             bytesToCopy   = elemByteSize * elemCount
-        (newElemsPtr :: Memory.UnmanagedPtr a) <- Memory.allocate @alloc cap
+        (newElemsPtr :: Memory.UnmanagedPtr a) <- Memory.allocate @alloc elemCount
         let newElemsPtr' = coerce (unwrap newElemsPtr)
         Memory.copyBytes newElemsPtr' ptr bytesToCopy
         Struct.write _externalMem a newElemsPtr'

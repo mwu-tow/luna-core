@@ -2,8 +2,7 @@
 
 module Data.Graph.Store.Buffer where
 
-import Prologue hiding (Data)
---, pprint, print, putStrLn)
+import Prologue hiding (Data, pprint, print, putStrLn)
 
 import qualified Control.Monad.State.Layered           as State
 import qualified Data.ByteString.Internal              as ByteString
@@ -11,11 +10,13 @@ import qualified Data.Convert2                         as Convert
 import qualified Data.Convert2                         as Convert
 import qualified Data.Generics.Traversable             as GTraversable
 import qualified Data.Graph.Component.Edge.Class       as Edge
+import qualified Data.Graph.Component.Node.Class       as Node
 import qualified Data.Graph.Data.Component.Class       as Component
 import qualified Data.Graph.Data.Component.List        as ComponentList
 import qualified Data.Graph.Data.Component.List        as ComponentList
 import qualified Data.Graph.Data.Graph.Class           as Graph
 import qualified Data.Graph.Data.Layer.Class           as Layer
+import qualified Data.Graph.Data.Layer.Layout          as Layout
 import qualified Data.Graph.Fold.LayerMap              as LayerMap
 import qualified Data.Graph.Fold.Partition             as Partition
 import qualified Data.Graph.Store.Size.Class           as Size
@@ -68,14 +69,14 @@ import qualified Type.Show                as Type
 type RedirectMap = Map Memory.SomeUnmanagedPtr Memory.SomeUnmanagedPtr
 
 
--- putStrLn :: Applicative m => String -> m ()
--- putStrLn = const $ pure ()
+putStrLn :: Applicative m => String -> m ()
+putStrLn = const $ pure ()
 
--- print :: Applicative m => a -> m ()
--- print = const $ pure ()
+print :: Applicative m => a -> m ()
+print = const $ pure ()
 
--- pprint :: Applicative m => a -> m ()
--- pprint = const $ pure ()
+pprint :: Applicative m => a -> m ()
+pprint = const $ pure ()
 
 
 ------------------------------
@@ -136,11 +137,13 @@ type StoreDynAllocator = 'Memory.Allocator StoreDyn
 newtype StoreDynState = StoreDynState (Memory.UnmanagedPtr ())
 makeLenses ''StoreDynState
 
-instance (State.Monad StoreDynState m, Storable.KnownConstantSize a)
+instance (MonadIO m, State.Monad StoreDynState m, Storable.KnownConstantSize a)
       => Memory.Allocation StoreDynAllocator 'Memory.Unmanaged a m where
     allocate n = do
         ptr <- unwrap <$> State.get @StoreDynState
-        State.put @StoreDynState $ wrap $ ptr `Memory.plus` (n * Storable.constantSize @a)
+        let byteSize = n * Storable.constantSize @a
+        State.put @StoreDynState $ wrap $ ptr `Memory.plus` byteSize
+        putStrLn $ "allocate " <> show n <> " " <> show byteSize <> " = " <> show ptr
         pure (coerce ptr)
 
 
@@ -174,10 +177,17 @@ instance (MonadIO m, Data.CopyInitializer1 m (ComponentSetA StoreDynAllocator co
       => CopyInitializerP1 m (ComponentSet comp) where
     copyInitializeP1 = \a -> do
         -- a <$ Data.copyInitialize1 (Memory.setAllocator @StoreDynAllocator a)
-        print "!! CopyInitializer (ComponentSet comp)"
-        print a
+        print "!!! CopyInitializer (ComponentSet comp)"
+        a1 <- Mutable.toList a
+        print a1
         Data.copyInitialize1 (Memory.setAllocator @StoreDynAllocator a)
-        print a
+        a2 <- Mutable.toList a
+        print a2
+        when_ (a1 /= a2) $ do
+            putStrLn "COPY INITIALIZER ERROR"
+            print a1
+            print a2
+            error "COPY INITIALIZER ERROR"
         pure a
 
 instance Applicative m => CopyInitializerP1 m (Component comp)
@@ -378,26 +388,16 @@ instance {-# OVERLAPPABLE #-}
                     case mitem of
                         Just x  -> pure x
                         Nothing -> do
-                            print a
                             lst <- Mutable.toList a
-                            print lst
-                            lst <- Mutable.toList a
-                            print lst
-                            lst <- Mutable.toList a
-                            print lst
-                            lst <- Mutable.toList a
-                            print lst
-                            print a
-                            --     $ "REDIRECTION LOOKUP ERROR. Layer = "
-                            --    <> Type.show @layer
-                            --    <> ". Key = " <> show ptr
-                            --    <> " " <> show a
-                            -- print lst
-                            error "REDIRECTION LOOKUP ERROR"
+                            error $ "REDIRECTION LOOKUP ERROR. Layer = "
+                               <> Type.show @layer
+                               <> ". Key = " <> show ptr
+                               <> " " <> show a
                     -- pure . unsafeFromJust . flip Map.lookup m $ ptr
             (,()) <$> redirectPointers1 f a
 
             -- Fold.build1 @ComponentRedirection
+
 
 
 
@@ -767,6 +767,7 @@ alloc = \ccount size -> liftIO $ do
         ptrRegionSize    = size ^. (Size.dynamic . Size.ptrRegion)
 
     ptr <- Memory.mallocBytes totalSize
+    putStrLn $ "Buffer malloc (" <> show totalSize <> " bytes) = " <> show ptr
 
     let struct   = Struct.unsafeCastFromPtr ptr
         elsCount = componentElems struct
@@ -814,33 +815,52 @@ type StaticRegionEncoder comps m
     = (StaticRegionEncoder__ comps (State.StateT RedirectMap m), Monad m)
 
 encodeStaticRegion :: StaticRegionEncoder comps m
-    => Partition.Clusters comps -> Memory.SomeUnmanagedPtr -> m RedirectMap
-encodeStaticRegion = flip State.execT mempty .: encodeStaticRegion__
+    => Node.Node layout
+    -> Partition.Clusters comps -> Memory.SomeUnmanagedPtr -> m RedirectMap
+encodeStaticRegion = flip State.execT mempty .:. (encodeStaticRegion__ . Layout.unsafeRelayout)
 
 
 -- === Internal === --
 
 class StaticRegionEncoder__ comps m where
-    encodeStaticRegion__ :: Partition.Clusters comps
-                         -> Memory.SomeUnmanagedPtr
-                         -> m Memory.SomeUnmanagedPtr
+    encodeStaticRegion__
+        :: Node.Node ()
+        -> Partition.Clusters comps
+        -> Memory.SomeUnmanagedPtr
+        -> m Memory.SomeUnmanagedPtr
 
 instance Applicative m
       => StaticRegionEncoder__ '[] m where
-    encodeStaticRegion__ = \_ -> pure
+    encodeStaticRegion__ = \_ _ -> pure
     {-# INLINE encodeStaticRegion__ #-}
 
-instance
+instance {-# OVERLAPPABLE #-}
     ( Partition.SplitHead comp comps
     , StaticRegionEncoder__ comps m
     , StaticComponentEncoder__ comp m
     , Monad m
     ) => StaticRegionEncoder__ (comp ': comps) m where
-    encodeStaticRegion__ = \clusters ptr -> do
+    encodeStaticRegion__ = \root clusters ptr -> do
         let (!compSet, !clusters') = Partition.splitHead clusters
         ptr' <- setFoldlM encodeComponentStatic__ ptr compSet
-        encodeStaticRegion__ clusters' ptr'
+        encodeStaticRegion__ root clusters' ptr'
     {-# INLINE encodeStaticRegion__ #-}
+
+-- Sorting root component to be first one
+instance
+    ( Partition.SplitHead comp comps
+    , StaticRegionEncoder__ comps m
+    , StaticComponentEncoder__ comp m
+    , Monad m
+    , comp ~ Node.Nodes
+    ) => StaticRegionEncoder__ (Node.Nodes ': comps) m where
+    encodeStaticRegion__ = \root clusters ptr -> do
+        let (!compSet, !clusters') = Partition.splitHead clusters
+            compList = root : Set.toList (Set.delete root compSet)
+        ptr' <- foldlM encodeComponentStatic__ ptr compList
+        encodeStaticRegion__ root clusters' ptr'
+    {-# INLINE encodeStaticRegion__ #-}
+
 
 class StaticComponentEncoder__ comp m where
     encodeComponentStatic__
