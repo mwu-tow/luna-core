@@ -55,7 +55,7 @@ run (RunOpts target) = liftIO $ catch compute recover where
                 filePath <- Path.parseAbsFile canonicalPath
                 if Path.fileExtension filePath /= Project.lunaFileExt then
                     hPutStrLn stderr $ canonicalPath <> " is not a Luna file."
-                else putStrLn $ "Interpreting File: " <> target
+                else putStrLn "Single-file mode not yet implemented."
             else if projectExists then runProject canonicalPath
             else hPutStrLn stderr $ target <> " not found."
         else do
