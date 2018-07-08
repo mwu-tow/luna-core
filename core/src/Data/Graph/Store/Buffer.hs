@@ -2,7 +2,8 @@
 
 module Data.Graph.Store.Buffer where
 
-import Prologue hiding (Data, pprint, print, putStrLn)
+import Prologue hiding (Data)
+--, pprint, print, putStrLn)
 
 import qualified Control.Monad.State.Layered           as State
 import qualified Data.ByteString.Internal              as ByteString
@@ -67,14 +68,14 @@ import qualified Type.Show                as Type
 type RedirectMap = Map Memory.SomeUnmanagedPtr Memory.SomeUnmanagedPtr
 
 
-putStrLn :: Applicative m => String -> m ()
-putStrLn = const $ pure ()
+-- putStrLn :: Applicative m => String -> m ()
+-- putStrLn = const $ pure ()
 
-print :: Applicative m => a -> m ()
-print = const $ pure ()
+-- print :: Applicative m => a -> m ()
+-- print = const $ pure ()
 
-pprint :: Applicative m => a -> m ()
-pprint = const $ pure ()
+-- pprint :: Applicative m => a -> m ()
+-- pprint = const $ pure ()
 
 
 ------------------------------
@@ -344,21 +345,55 @@ type instance Fold.LayerScope ComponentRedirection = 'Fold.All
 
 instance Monad m => Fold.ComponentMap ComponentRedirection m comp
 
-instance (Show (Layer.Cons layer ()), Type.Show layer, MonadIO m, PointerRedirection1 m (Layer.Cons layer), State.Getter RedirectMap m)
+instance {-# OVERLAPPABLE #-}
+    (Show (Layer.Cons layer ()), Type.Show layer, MonadIO m, PointerRedirection1 m (Layer.Cons layer), State.Getter RedirectMap m)
       => Fold.LayerMap ComponentRedirection m layer where
         mapLayer = \a _ -> do
             print $ "redirecting layer " <> Type.show @layer
+            print (unsafeCoerce a :: Layer.Cons layer ())
             m <- State.get @RedirectMap
             let f ptr = do
                     putStrLn $ "LOOKUP " <> show ptr
                     let mitem = Map.lookup ptr m
                     case mitem of
                         Just x  -> pure x
-                        Nothing -> error
-                            $ "REDIRECTION LOOKUP ERROR. Layer = "
-                           <> Type.show @layer
-                           <> ". Key = " <> show ptr
-                           <> " " <> show (unsafeCoerce a :: Layer.Cons layer ())
+                        Nothing -> do
+                            error "REDIRECTION LOOKUP ERROR"
+                    -- pure . unsafeFromJust . flip Map.lookup m $ ptr
+            (,()) <$> redirectPointers1 f a
+
+            -- Fold.build1 @ComponentRedirection
+
+instance {-# OVERLAPPABLE #-}
+    (MonadIO m, PointerRedirection1 m (Layer.Cons layer), State.Getter RedirectMap m, layer ~ IR.Users)
+      => Fold.LayerMap ComponentRedirection m IR.Users where
+        mapLayer = \a _ -> do
+            print $ "redirecting layerx " <> Type.show @layer
+            lst <- Mutable.toList a
+            print lst
+            m <- State.get @RedirectMap
+            let f ptr = do
+                    putStrLn $ "LOOKUP " <> show ptr
+                    let mitem = Map.lookup ptr m
+                    case mitem of
+                        Just x  -> pure x
+                        Nothing -> do
+                            print a
+                            lst <- Mutable.toList a
+                            print lst
+                            lst <- Mutable.toList a
+                            print lst
+                            lst <- Mutable.toList a
+                            print lst
+                            lst <- Mutable.toList a
+                            print lst
+                            print a
+                            --     $ "REDIRECTION LOOKUP ERROR. Layer = "
+                            --    <> Type.show @layer
+                            --    <> ". Key = " <> show ptr
+                            --    <> " " <> show a
+                            -- print lst
+                            error "REDIRECTION LOOKUP ERROR"
                     -- pure . unsafeFromJust . flip Map.lookup m $ ptr
             (,()) <$> redirectPointers1 f a
 

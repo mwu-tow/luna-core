@@ -1,6 +1,7 @@
 module Data.Graph.Store where
 
-import Prologue hiding (pprint, print, putStrLn)
+import Prologue
+--hiding (pprint, print, putStrLn)
 
 import qualified Data.Graph.Data.Component.Class as Component
 import qualified Data.Graph.Data.Graph.Class     as Graph
@@ -16,14 +17,14 @@ import Data.Graph.Data.Component.Class (Component)
 -- import Data.Graph.Store.MemoryRegion   (MemoryRegion)
 
 
-putStrLn :: Applicative m => String -> m ()
-putStrLn = const $ pure ()
+-- putStrLn :: Applicative m => String -> m ()
+-- putStrLn = const $ pure ()
 
-print :: Applicative m => a -> m ()
-print = const $ pure ()
+-- print :: Applicative m => a -> m ()
+-- print = const $ pure ()
 
-pprint :: Applicative m => a -> m ()
-pprint = const $ pure ()
+-- pprint :: Applicative m => a -> m ()
+-- pprint = const $ pure ()
 
 
 -- -----------------------

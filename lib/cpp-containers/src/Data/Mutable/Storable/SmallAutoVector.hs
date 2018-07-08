@@ -340,6 +340,7 @@ instance
 instance (Show a, ToList IO (SmallVectorA t alloc n a), Show (Memory.PtrImpl t ()))
       => Show (SmallVectorA t alloc n a) where
     show a = (show . unsafePerformIO . toList $ a) <> " @ " <> show (unwrap a)
+    {-# NOINLINE show #-}
 
 
 
