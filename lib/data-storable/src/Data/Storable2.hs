@@ -32,11 +32,6 @@ data Fieldx
 
 
 
-
-
-
-
-
 ----------------------
 -- === FieldRef === --
 ----------------------
@@ -95,23 +90,19 @@ type family LookupFieldType idx (fields :: [Type]) where
 
 
 
------------------------
--- === FieldList === --
------------------------
+----------------------
+-- === Layouts === --
+----------------------
 
--- === Definition === --
+-- === FieldList === --
 
 data FieldList (layout :: [FieldSig])
-
-
--- === Instances === --
-
 type instance Fields (FieldList lst) = MapFieldSigType lst
 
 
+-- === Generic === --
 
 data Generic a
-
 type instance Fields (Generic a) = MapFieldSigType (GenericFieldSig__ a)
 type GenericFieldSig__ a         = GenericFields__ (Generics.Rep a)
 
@@ -154,7 +145,8 @@ type family   FieldListIdx s lst where
     FieldListIdx s ((t -:: _) ': l) = Type.SuccMaybe (FieldListIdx s l)
     FieldListIdx _ _                = 'Nothing
 
-type instance FieldIdx (Label s) (Generic a) = FieldIdx (Label s) (FieldList (GenericFieldSig__ a))
+type instance FieldIdx (Label s) (Generic a)
+   = FieldIdx (Label s) (FieldList (GenericFieldSig__ a))
 
 
 ------------------
@@ -224,11 +216,6 @@ instance IsStruct (Product t fields) where
 makeLenses ''Product
 
 type instance Memory.Management (Product t _) = t
-
--- instance Storable.KnownConstantSize (MapFieldSigType fields)
---       => Storable.KnownConstantSize (Product t fields) where
---     constantSize = Storable.constantSize @(MapFieldSigType fields)
---     {-# INLINE constantSize #-}
 
 deriving instance Eq     (Product__ t fields) => Eq     (Product t fields)
 deriving instance NFData (Product__ t fields) => NFData (Product t fields)
@@ -340,8 +327,6 @@ ref = const $ fieldRef @field
 
 -- === Instances ==== --
 
-
-
 class HasField__
     (field  :: Type)
     (fields :: [Type])
@@ -384,7 +369,7 @@ instance
 
 
 
-------------------------
+--------------------------
 -- === Construction === --
 --------------------------
 
@@ -526,7 +511,7 @@ bar = autoLens
 baz :: Lens (Label "ybaz")
 baz = autoLens
 
-xxx :: Lens '[Label "yfoo", Label "ysbar"]
+xxx :: Lens '[Label "yfoo", Label "ybar"]
 xxx = foo . bar
 
 -- -- -- Product.Has (Lens "foo") a
