@@ -27,7 +27,6 @@ import Foreign.Ptr            (Ptr, minusPtr, nullPtr, plusPtr)
 import Foreign.Storable.Class (Copy, Storable, View)
 import Foreign.Storable.Utils (Dynamic, Dynamics)
 import Foreign.Storable.Utils (castPeekAndOffset, castPokeAndOffset)
-import System.IO.Unsafe       (unsafeDupablePerformIO, unsafePerformIO)
 
 
 
@@ -337,11 +336,7 @@ instance
 
 -- === Debug instances === --
 
-instance (Show a, ToList IO (SmallVectorA t alloc n a), Show (Memory.PtrImpl t ()))
-      => Show (SmallVectorA t alloc n a) where
-    show a = (show . unsafePerformIO . toList $ a) <> " @ " <> show (unwrap a)
-    {-# NOINLINE show #-}
-
+deriving instance Show (SmallVector__ t n a) => Show (SmallVectorA t alloc n a)
 
 
 -- === Deprecated instances === --
