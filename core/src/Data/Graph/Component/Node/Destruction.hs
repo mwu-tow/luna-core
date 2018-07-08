@@ -42,6 +42,7 @@ delete = \node -> do
     let es = Set.toList $ Set.fromList $ (convert edges :: [Edge.SomeEdge])
     traverse Edge.delete es
     Component.destruct1 node
+    return ()
 {-# INLINE delete #-}
 
 type DeleteSubtree m =

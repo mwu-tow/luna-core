@@ -11,16 +11,25 @@ library:
     source-dirs:
         - src
     dependencies:
+        - async
         - base
         - container
         - containers
+        - filepath
+        - lens
+        - luna-exception
         - luna-cpp-containers
         - luna-data-storable
+        - luna-data-construction
+        - luna-runtime
+        - luna-syntax-text-parser
+        - luna-syntax-text-model
         - layered-state
         - luna-core
         - luna-debug
         - mtl
         - prologue >= 3.0.0
+        - text
         - transformers
 
 default-extensions:
