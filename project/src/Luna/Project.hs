@@ -3,19 +3,20 @@ module Luna.Project where
 
 import Prologue
 
-import qualified Data.Bimap             as Bimap
-import qualified OCI.Data.Name          as Name
-import qualified Path                   as Path
-import qualified System.Directory       as Dir
-import qualified System.FilePath        as FilePath
-import qualified System.FilePath.Find   as Find
+import qualified Data.Bimap              as Bimap
+import qualified OCI.Data.Name           as Name
+import qualified Path                    as Path
+import qualified System.Directory        as Dir
+import qualified System.FilePath         as FilePath
+import qualified System.FilePath.Find    as Find
 
-import           Control.Arrow          ((&&&))
-import           Control.Exception.Safe (try, tryAny)
-import           Data.Bimap             (Bimap)
-import           OCI.Data.Name          (Name)
-import           Path                   (Path, Abs, Rel, File, Dir, (</>))
-import           System.Environment     (getEnv)
+import Control.Arrow           ((&&&))
+import Control.Exception.Safe  (try, tryAny)
+import Data.Bimap              (Bimap)
+import OCI.Data.Name           (Name)
+import OCI.Data.Name.Qualified (Qualified)
+import Path                    (Path, Abs, Rel, File, Dir, (</>))
+import System.Environment      (getEnv)
 
 
 -- === Constants === --
@@ -34,6 +35,12 @@ localLibsPath = $(Path.mkRelDir "local_libs")
 
 sourceDirectory :: Path Rel Dir
 sourceDirectory = $(Path.mkRelDir "src")
+
+mainFileName :: Qualified
+mainFileName = "Main"
+
+mainFuncName :: Qualified
+mainFuncName = "main"
 
 -- === API === --
 

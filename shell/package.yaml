@@ -1,5 +1,5 @@
 name:       luna-shell
-version:    "1.1"
+version:    "1.2"
 author:     Luna Team <contact@luna-lang.org>
 maintainer: Luna Team <contact@luna-lang.org>
 
@@ -7,16 +7,32 @@ library:
     source-dirs:
         - src
     dependencies:
+        - ansi-wl-pprint
+        - async
         - base
+        - bimap
+        - containers
         - directory
         - filepath
-        - path
         - layered-state
+        - luna-core
+        - luna-cpp-containers
+        - luna-data-tag
+        - luna-debug
+        - luna-exception
+        - luna-passes
         - luna-project
+        - luna-runtime
+        - luna-stdlib
+        - luna-syntax-text-lexer
+        - luna-syntax-text-model
+        - luna-syntax-text-parser
+        - mtl
         - optparse-applicative
+        - path
         - prologue
         - text
-        - yaml
+        - unordered-containers
 
 executables:
     luna:

@@ -22,14 +22,18 @@ newtype Qualified = Qualified Name.Name
 makeLenses          ''Qualified
 GTraversable.derive ''Qualified
 
+
+-- === Instances === --
+
+instance Semigroup Qualified where
+    (Qualified n1) <> (Qualified n2) = Qualified (n1 <> n2)
+    {-# INLINE (<>) #-}
+
 instance MonadIO m => Storable.Peek t m Qualified
 instance MonadIO m => Storable.Poke t m Qualified
 instance Storable.KnownConstantSize Qualified where
     constantSize = Storable.constantSize @(Unwrapped Qualified)
     {-# INLINE constantSize #-}
-
-
--- === Instances === --
 
 type instance Item Qualified = Name.Name
 
