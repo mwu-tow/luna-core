@@ -4,24 +4,12 @@ import Prologue
 
 import qualified Control.Monad.State.Layered as State
 import qualified Luna.Project                as Project
+import qualified Luna.Shell.CWD              as CWD
 import qualified Luna.Shell.Interpret        as Interpret
 import qualified Path                        as Path
 import qualified System.Directory            as Directory
-import qualified System.Environment          as Environment
 
 import System.IO         (hPutStrLn, stderr)
-
-
-
------------------------
--- === Constants === --
------------------------
-
--- === Definition === --
-
-appImageEnvVar :: String
-appImageEnvVar = "OWD"
-
 
 
 -------------------------------
@@ -73,16 +61,14 @@ run (RunOpts target) = liftIO $ catch compute recover where
             else if projectExists then runProject canonicalPath
             else hPutStrLn stderr $ target <> " not found."
         else do
-            cwd <- liftIO . catch (Environment.getEnv appImageEnvVar)
-                $ \(_ :: SomeException) -> liftIO Directory.getCurrentDirectory
+            cwd <- CWD.get
             runProject cwd
 
     -- TODO This can be done much better.
     recover (e :: SomeException) = hPutStrLn stderr $ displayException e
 
     runProject path = do
-        canonPath     <- liftIO $ Directory.canonicalizePath path
-        projectPath   <- Path.parseAbsDir canonPath
+        projectPath   <- Path.parseAbsDir path
         isLunaProject <- Project.isLunaProject projectPath
 
         if isLunaProject then Interpret.project projectPath
