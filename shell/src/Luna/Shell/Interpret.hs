@@ -103,10 +103,10 @@ project projPath = Graph.encodeAndEval @ShellInterpreter $ Scheduler.evalT $ do
     let projSrcMap = Map.map Path.toFilePath $ foldl' Map.union Map.empty
             $ Bimap.toMapR <$> projectSrcs
         projectName  = Project.getProjectName projectRoot
-        mainFileName :: IR.Qualified
-        mainFileName = Project.mainFileName
+        mainFileName = convert projectName <> "." <> Project.mainFileName
 
     print projSrcMap
+    print mainFileName
 
     -- Set up the interpreter
     ModLoader.init @ShellInterpreter
