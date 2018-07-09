@@ -133,7 +133,7 @@ instance Pass.Interface VisPass (Pass stage VisPass)
         Root root <- Attr.get
         VisName n <- Attr.get
         print root
-        Vis.displayVisualization n root
+        {- Vis.displayVisualization n root -}
 
 
 

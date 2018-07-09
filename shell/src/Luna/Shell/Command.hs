@@ -4,10 +4,10 @@ import Prologue
 
 import qualified Control.Monad.State.Layered as State
 import qualified Luna.Project                as Project
+import qualified Luna.Shell.Interpret        as Interpret
 import qualified Path                        as Path
 import qualified System.Directory            as Directory
 
-import Path              (Path, Abs, File, Dir)
 import System.IO         (hPutStrLn, stderr)
 
 -------------------------------
@@ -55,7 +55,7 @@ run (RunOpts target) = liftIO $ catch compute recover where
                 filePath <- Path.parseAbsFile canonicalPath
                 if Path.fileExtension filePath /= Project.lunaFileExt then
                     hPutStrLn stderr $ canonicalPath <> " is not a Luna file."
-                else putStrLn "Single-file mode not yet implemented."
+                else Interpret.file filePath
             else if projectExists then runProject canonicalPath
             else hPutStrLn stderr $ target <> " not found."
         else do
@@ -69,7 +69,7 @@ run (RunOpts target) = liftIO $ catch compute recover where
         projectPath <- Path.parseAbsDir path
         isLunaProject <- Project.isLunaProject projectPath
 
-        if isLunaProject then putStrLn $ "Interpreting Project: " <> path
+        if isLunaProject then Interpret.project projectPath
         else hPutStrLn stderr $ path <> " is not a Luna Project."
 
 
@@ -83,10 +83,4 @@ run (RunOpts target) = liftIO $ catch compute recover where
 runLuna :: (MonadIO m, MonadThrow m) => Command -> m ()
 runLuna command = case command of
         Run opts -> run opts
-
-interpretFile :: MonadIO m => Path Abs File -> m ()
-interpretFile path = print path
-
-interpretProject :: MonadIO m => Path Abs Dir -> m ()
-interpretProject path = print path
 
