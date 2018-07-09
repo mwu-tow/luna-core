@@ -74,19 +74,26 @@ instance Storable.KnownConstantSize a
     {-# INLINE constantSize #-}
 
 
--- === FieldType === --
+-- === Fields === --
 
-type family FieldIdx key layout :: Maybe Nat
-type family Fields   a :: [Type]
+type family Fields    a :: [Type]
+type family FieldIdx  field layout :: Maybe Nat
+type family FieldType field layout :: Type
 
-type family FieldType path a where
-    FieldType path Imp                = Imp
-    FieldType (Path '[])       a = a
-    FieldType (Path (f ': fs)) a = FieldType (Path fs)
-        (LookupFieldType (FieldIdx f (Layout a)) (Fields (Layout a)))
+
+-- === Utils === --
+
+type family ResolvePath path a where
+    ResolvePath path Imp           = Imp
+    ResolvePath (Path '[])       a = a
+    ResolvePath (Path (f ': fs)) a = ResolvePath (Path fs)
+                                     (FieldType f (Layout a))
 
 type family LookupFieldType idx (fields :: [Type]) where
     LookupFieldType ('Just idx) fields = List.Index' idx fields
+
+type FieldTypeByIdx f layout
+   = LookupFieldType (FieldIdx f layout) (Fields layout)
 
 
 
@@ -103,6 +110,8 @@ type instance Fields (FieldList lst) = MapFieldSigType lst
 -- === Generic === --
 
 data Generic a
+type GenericStruct t a = Struct t (Generic a)
+
 type instance Fields (Generic a) = MapFieldSigType (GenericFieldSig__ a)
 type GenericFieldSig__ a         = GenericFields__ (Generics.Rep a)
 
@@ -121,6 +130,10 @@ instance Storable.KnownConstantSize (Fields (Generic a))
       => Storable.KnownConstantSize (Generic a) where
     constantSize = Storable.constantSize @(Fields (Generic a))
     {-# INLINE constantSize #-}
+
+
+type instance FieldType field (Generic a) = FieldTypeByIdx field (Generic a)
+
 
 
 
@@ -176,51 +189,56 @@ autoLens = \_ -> Path
 
 
 
----------------------
--- === Product === --
----------------------
+--------------------
+-- === Struct === --
+--------------------
 
 -- === Definition === --
 
-type    Product__ t (layout :: Type) = Memory.SomePtr t
-newtype Product   t (layout :: Type) = Product (Product__ t layout)
+type    Struct__ t (layout :: Type) = Memory.SomePtr t
+newtype Struct   t (layout :: Type) = Struct (Struct__ t layout)
 
 
 -- === Aliases === --
 
-type ManagedStruct   = Product 'Memory.Managed
-type UnmanagedStruct = Product 'Memory.Unmanaged
+type ManagedStruct   = Struct 'Memory.Managed
+type UnmanagedStruct = Struct 'Memory.Unmanaged
 
 
 -- === Generalization === --
 
 class IsStruct a where
     type Layout a :: Type
-    struct :: Iso' a (Product (Memory.Management a) (Layout a))
+    struct :: Iso' a (Struct (Memory.Management a) (Layout a))
 
     type Layout a = Layout (Unwrapped a)
     default struct
-        :: (Wrapped a, Unwrapped a ~ Product (Memory.Management a) (Layout a))
-        => Iso' a (Product (Memory.Management a) (Layout a))
+        :: (Wrapped a, Unwrapped a ~ Struct (Memory.Management a) (Layout a))
+        => Iso' a (Struct (Memory.Management a) (Layout a))
     struct = wrapped'
     {-# INLINE struct #-}
 
-instance IsStruct (Product t fields) where
-    type Layout (Product t fields) = fields
+instance IsStruct (Struct t fields) where
+    type Layout (Struct t fields) = fields
     struct = id
     {-# INLINE struct #-}
 
 
 -- === Instances === --
 
-makeLenses ''Product
+makeLenses ''Struct
 
-type instance Memory.Management (Product t _) = t
+type instance Memory.Management (Struct t _) = t
 
-deriving instance Eq     (Product__ t fields) => Eq     (Product t fields)
-deriving instance NFData (Product__ t fields) => NFData (Product t fields)
-deriving instance Ord    (Product__ t fields) => Ord    (Product t fields)
-deriving instance Show   (Product__ t fields) => Show   (Product t fields)
+deriving instance Eq     (Struct__ t fields) => Eq     (Struct t fields)
+deriving instance NFData (Struct__ t fields) => NFData (Struct t fields)
+deriving instance Ord    (Struct__ t fields) => Ord    (Struct t fields)
+deriving instance Show   (Struct__ t fields) => Show   (Struct t fields)
+
+instance Storable.KnownConstantSize (Fields layout)
+      => Storable.KnownConstantSize (Struct t layout) where
+    constantSize = Storable.constantSize @(Fields layout)
+    {-# INLINE constantSize #-}
 
 
 
@@ -233,11 +251,19 @@ deriving instance Show   (Product__ t fields) => Show   (Product t fields)
 type Editor field a = (Reader field a, Writer field a)
 
 class Reader (lens :: Type) (a :: Type) where
-    readFieldIO :: a -> IO (FieldType lens a)
+    readFieldIO :: a -> IO (ResolvePath lens a)
+
+class PathReader (path :: [Type]) (a :: Type) where
+class Reader2    (field :: Type) (a :: Type) where
+    -- readFieldIO2 :: a -> IO (ResolvePath lens a)
 
 class Writer (field :: Type) (a :: Type) where
-    writeFieldIO :: a -> FieldType field a -> IO ()
+    writeFieldIO :: a -> ResolvePath field a -> IO ()
 
+instance (Reader2 f a, PathReader fs a) => PathReader (f ': fs) a
+instance PathReader '[] a
+
+type family FromPath p where FromPath (Path p) = p
 
 -- === Types === --
 
@@ -248,22 +274,33 @@ type FieldRefPoke t a = (Memory.PtrType t, Storable.Poke Fieldx IO a)
 -- === API === --
 
 read :: ∀ field a m. (Reader field a, MonadIO m)
-     => AppliedLens field -> a -> m (FieldType field a)
+     => AppliedLens field -> a -> m (ResolvePath field a)
 read = const $ readField @field
 {-# INLINE read #-}
 
+read2 :: ∀ path a m. (PathReader (FromPath path) a)
+     => AppliedLens path -> a -> m (ResolvePath path a)
+read2 = undefined -- const $ readField @field
+{-# INLINE read2 #-}
+
+
+read2' :: ∀ s a m path. (PathReader path a, path ~ ToPath s)
+    => a -> m (ResolvePath (Path path) a)
+read2' = undefined
+
+
 write :: ∀ field a m. (Writer field a, MonadIO m)
-    => AppliedLens field -> a -> FieldType field a -> m ()
+    => AppliedLens field -> a -> ResolvePath field a -> m ()
 write = const $ writeField @field
 {-# INLINE write #-}
 
 readField :: ∀ lens a m. (Reader lens a, MonadIO m)
-    => a -> m (FieldType lens a)
+    => a -> m (ResolvePath lens a)
 readField = liftIO . readFieldIO @lens
 {-# INLINE readField #-}
 
 writeField :: ∀ field a m. (Writer field a, MonadIO m)
-    => a -> FieldType field a -> m ()
+    => a -> ResolvePath field a -> m ()
 writeField = liftIO .: writeFieldIO @field
 {-# INLINE writeField #-}
 
@@ -280,12 +317,12 @@ pokeRef = \a v -> liftIO $ Memory.withUnmanagedPtr (unwrap a)
 
 -- === Instances === --
 
-instance (Has field a, FieldRefPeek (Memory.Management a) (FieldType field a))
+instance (Has field a, FieldRefPeek (Memory.Management a) (ResolvePath field a))
       => Reader field a where
     readFieldIO = peekRef . fieldRef @field
     {-# INLINE readFieldIO #-}
 
-instance (Has field a, FieldRefPoke (Memory.Management a) (FieldType field a))
+instance (Has field a, FieldRefPoke (Memory.Management a) (ResolvePath field a))
       => Writer field a where
     writeFieldIO = pokeRef . fieldRef @field
     {-# INLINE writeFieldIO #-}
@@ -312,7 +349,7 @@ class HasCtx a => Has (field :: Type) (a :: Type) where
 
 -- === Utils === --
 
-fieldRef :: ∀ field a. Has field a => a -> FieldRefOf a (FieldType field a)
+fieldRef :: ∀ field a. Has field a => a -> FieldRefOf a (ResolvePath field a)
 fieldRef = \a ->
     let ptr = Memory.coercePtr . unwrap $ a ^. struct
         off = byteOffset @field @a
@@ -320,7 +357,7 @@ fieldRef = \a ->
 {-# INLINE fieldRef #-}
 
 ref :: ∀ field a. Has field a
-    => AppliedLens field -> a -> FieldRefOf a (FieldType field a)
+    => AppliedLens field -> a -> FieldRefOf a (ResolvePath field a)
 ref = const $ fieldRef @field
 {-# INLINE ref #-}
 
@@ -410,7 +447,7 @@ free = liftIO . Mem.free . unwrap . unwrap . view struct
 unsafeCastFromPtr :: ∀ a p. IsStruct a
     => Memory.Ptr (Memory.Management a) a -> a
 unsafeCastFromPtr = view (from struct)
-    . Product @(Memory.Management a) @(Layout a) . Memory.coercePtr
+    . Struct @(Memory.Management a) @(Layout a) . Memory.coercePtr
 {-# INLINE unsafeCastFromPtr #-}
 
 
@@ -460,7 +497,7 @@ instance IsStruct a
     cons__ = \alloc f -> do
         ptr <- alloc
         let (!m, !_) = f ptr
-        (Product ptr ^. from struct) <$ m
+        (Struct ptr ^. from struct) <$ m
     {-# INLINE cons__ #-}
 
 
@@ -484,7 +521,7 @@ type Foo = Lens "foo"
 type Bar = Lens "bar"
 type Baz = Lens "baz"
 
-newtype X = X (Product 'Memory.Unmanaged (FieldList '[Label "foo" -:: Int, Label "bar" -:: Int, Label "baz" -:: Int]))
+newtype X = X (Struct 'Memory.Unmanaged (FieldList '[Label "foo" -:: Int, Label "bar" -:: Int, Label "baz" -:: Int]))
 makeLenses ''X
 type instance Memory.Management X = 'Memory.Unmanaged
 instance IsStruct X
@@ -496,7 +533,7 @@ data YD = YD
     , ybaz :: Int
     } deriving (Generics.Generic)
 
-newtype Y = Y (Product 'Memory.Unmanaged (Generic YD))
+newtype Y = Y (Struct 'Memory.Unmanaged (Generic YD))
 makeLenses ''Y
 type instance Memory.Management Y = 'Memory.Unmanaged
 instance IsStruct Y
@@ -514,7 +551,7 @@ baz = autoLens
 xxx :: Lens '[Label "yfoo", Label "ybar"]
 xxx = foo . bar
 
--- -- -- Product.Has (Lens "foo") a
+-- -- -- Struct.Has (Lens "foo") a
 
 xcons :: Int -> Int -> Int -> IO X
 xcons = construct @X

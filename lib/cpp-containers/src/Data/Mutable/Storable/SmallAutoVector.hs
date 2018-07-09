@@ -14,16 +14,17 @@ import qualified Data.List                        as List
 import qualified Data.Mutable.Class2              as Mutable
 import qualified Data.Mutable.Plain               as Data
 import qualified Data.Property                    as Property
-import qualified Data.Storable                    as Struct
-import qualified Data.Storable.Definition         as Struct
-import qualified Foreign.Marshal.Alloc            as Mem
-import qualified Foreign.Marshal.Utils            as Mem
-import qualified Foreign.Storable                 as StdStorable
-import qualified Foreign.Storable.Class           as Storable
-import qualified Memory                           as Memory
-import qualified Type.Known                       as Type
+import qualified Data.Storable2                   as Struct
+-- import qualified Data.Storable.Definition         as Struct
+import qualified Foreign.Marshal.Alloc  as Mem
+import qualified Foreign.Marshal.Utils  as Mem
+import qualified Foreign.Storable       as StdStorable
+import qualified Foreign.Storable.Class as Storable
+import qualified Memory                 as Memory
+import qualified Type.Known             as Type
 
-import Data.Storable          (type (-::))
+import Data.Storable2         (type (-::), Label)
+import Data.Storable2         (GenericStruct)
 import Foreign.Ptr            (Ptr, minusPtr, nullPtr, plusPtr)
 import Foreign.Storable.Class (Copy, Storable, View)
 import Foreign.Storable.Utils (Dynamic, Dynamics)
@@ -69,33 +70,21 @@ instance (Storable.KnownConstantSize a, Type.KnownInt n)
 
 -- === Definition === --
 
-Struct.define [d|
-
- data SmallVectorA
-      (t     :: Memory.Management)
-      (alloc :: Memory.Allocator)
-      (n     :: Nat)
-      (a     :: Type)
-    = SmallVector
-    { length      :: Int
-    , capacity    :: Int
-    , externalMem :: Memory.UnmanagedPtr a
-    , localMem    :: MemChunk t n a
-    }
-
- |]
-
 newtype SmallVectorA t (alloc :: Memory.Allocator) (n :: Nat) (a :: Type)
       = SmallVector (SmallVector__ t n a)
 
-type SmallVector__ t (n :: Nat) a = Struct.Product t (Layout t n a)
-type Layout t n a =
-   '[ "length"      -:: Int
-    , "capacity"    -:: Int
-    , "externalMem" -:: (Memory.UnmanagedPtr a)
-    , "localMem"    -:: MemChunk t n a
-    ]
+type SmallVector__ t (n :: Nat) a
+   = GenericStruct t (SmallVectorStruct t n a)
+
+data SmallVectorStruct t n a = SmallVectorStruct
+    { _fieldSize        :: Int
+    , _fieldCapacity    :: Int
+    , _fieldExternalMem :: Memory.UnmanagedPtr a
+    , _fieldLocalMem    :: MemChunk t n a
+    } deriving (Generic)
+
 makeLenses ''SmallVectorA
+
 
 type instance Item (SmallVectorA t alloc n a) = a
 instance Struct.IsStruct (SmallVectorA t alloc n a)
@@ -117,33 +106,33 @@ type UnmanagedSmallVectorA = SmallVectorA 'Memory.Unmanaged
 
 -- === Fields === --
 
-_length      :: Struct.Lens "length"
-_capacity    :: Struct.Lens "capacity"
-_externalMem :: Struct.Lens "externalMem"
-_localMem    :: Struct.Lens "localMem"
-_length      = Struct.autoLens ; {-# INLINE _length      #-}
-_capacity    = Struct.autoLens ; {-# INLINE _capacity    #-}
-_externalMem = Struct.autoLens ; {-# INLINE _externalMem #-}
-_localMem    = Struct.autoLens ; {-# INLINE _localMem    #-}
+fieldSize        :: Struct.Lens (Label "_fieldSize")
+fieldCapacity    :: Struct.Lens (Label "_fieldCapacity")
+fieldExternalMem :: Struct.Lens (Label "_fieldExternalMem")
+fieldLocalMem    :: Struct.Lens (Label "_fieldLocalMem")
+fieldSize        = Struct.autoLens ; {-# INLINE fieldSize      #-}
+fieldCapacity    = Struct.autoLens ; {-# INLINE fieldCapacity    #-}
+fieldExternalMem = Struct.autoLens ; {-# INLINE fieldExternalMem #-}
+fieldLocalMem    = Struct.autoLens ; {-# INLINE fieldLocalMem    #-}
 
 
 -- === Utils === --
 
 localMem :: Memory.PtrType t => SmallVectorA t alloc n a -> MemChunk t n a
-localMem = wrap . Memory.coercePtr . unwrap . Struct.ref _localMem
+localMem = wrap . Memory.coercePtr . unwrap . Struct.ref fieldLocalMem
 {-# INLINE localMem #-}
 
 elemsPtr :: (MonadIO m, Memory.PtrType t)
     => SmallVectorA t alloc n a -> m (Memory.UnmanagedPtr a)
 elemsPtr = \a -> do
     isExt <- usesDynamicMemory a
-    if isExt then Struct.read _externalMem a
+    if isExt then Struct.read fieldExternalMem a
              else pure . Memory.unsafeToUnmanaged . unwrap $ localMem a
 {-# INLINE elemsPtr #-}
 
 usesDynamicMemory :: (MonadIO m, Memory.PtrType t)
     => SmallVectorA t alloc n a -> m Bool
-usesDynamicMemory = fmap (/= Memory.nullPtr) . Struct.read _externalMem
+usesDynamicMemory = fmap (/= Memory.nullPtr) . Struct.read fieldExternalMem
 {-# INLINE usesDynamicMemory #-}
 
 
@@ -165,9 +154,9 @@ instance (MonadIO m, Memory.PtrType t, Type.KnownInt n)
       => PlacementNew m (SmallVectorA t alloc n a) where
     placementNew = \ptr -> liftIO $ do
         let a = Struct.unsafeCastFromPtr ptr
-        Struct.write _length a 0
-        Struct.write _capacity a $! Type.val' @n
-        Struct.write _externalMem a Memory.nullPtr
+        Struct.write fieldSize a 0
+        Struct.write fieldCapacity a $! Type.val' @n
+        Struct.write fieldExternalMem a Memory.nullPtr
         pure a
     {-# INLINE placementNew #-}
 
@@ -183,19 +172,19 @@ instance
 
 instance (MonadIO m, Memory.PtrType t)
       => Size m (SmallVectorA t alloc n a) where
-    size = Struct.read _length
+    size = Struct.read fieldSize
     {-# INLINE size #-}
 
 instance (MonadIO m, Memory.PtrType t)
       => Capacity m (SmallVectorA t alloc n a) where
-    capacity = Struct.read _capacity
+    capacity = Struct.read fieldCapacity
     {-# INLINE capacity #-}
 
 instance (MonadIO m, t ~ 'Memory.Unmanaged)
       => Free m (SmallVectorA t alloc n a) where
     free = \a -> do
         whenM (usesDynamicMemory a)
-            $ Memory.free =<< Struct.read _externalMem a
+            $ Memory.free =<< Struct.read fieldExternalMem a
         Struct.free a
     {-# INLINE free #-}
 
@@ -241,8 +230,8 @@ instance (MonadIO m, Memory.PtrType t, Storable.KnownConstantSize a, Memory.Unma
         let newElemsPtr = coerce (unwrap newElemsPtr_)
         Memory.copyBytes newElemsPtr ptr bytesToCopy
         whenM (usesDynamicMemory a) $ Memory.free ptr
-        Struct.write _capacity a newSize
-        Struct.write _externalMem a $! newElemsPtr
+        Struct.write fieldCapacity a newSize
+        Struct.write fieldExternalMem a $! newElemsPtr
     {-# INLINE grow #-}
 
 instance (MonadIO m, Memory.PtrType t, Write m (SmallVectorA t alloc n a), Grow m (SmallVectorA t alloc n a))
@@ -252,7 +241,7 @@ instance (MonadIO m, Memory.PtrType t, Write m (SmallVectorA t alloc n a), Grow 
         cap <- capacity a
         when (siz == cap) $ grow a
         unsafeWrite a siz v
-        Struct.write _length a $! siz + 1
+        Struct.write fieldSize a $! siz + 1
     {-# INLINE pushBack #-}
 
 instance
@@ -273,7 +262,7 @@ instance
             byteOff = elSize * (siz - ix)
         when (byteOff > 0) $ Memory.moveBytes ptrIx' ptrIx byteOff
         unsafeWrite a ix v
-        Struct.write _length a $! siz + 1
+        Struct.write fieldSize a $! siz + 1
     {-# INLINE insertAt #-}
 
 instance
@@ -289,7 +278,7 @@ instance
             ptrIx'  = ptrIx `Memory.plus` elSize
             byteOff = elSize * (siz - ix - 1)
         when (byteOff > 0) $ liftIO $ Memory.moveBytes ptrIx ptrIx' byteOff
-        Struct.write _length a $! siz - 1
+        Struct.write fieldSize a $! siz - 1
     {-# INLINE removeAt #-}
 
 instance (MonadIO m, Memory.PtrType t, IxMap m (SmallVectorA t alloc n a))
@@ -347,7 +336,7 @@ instance
         (newElemsPtr :: Memory.UnmanagedPtr a) <- Memory.allocate @alloc elemCount
         let newElemsPtr' = coerce (unwrap newElemsPtr)
         Memory.copyBytes newElemsPtr' ptr bytesToCopy
-        Struct.write _externalMem a newElemsPtr'
+        Struct.write fieldExternalMem a newElemsPtr'
     {-# INLINE copyInitialize #-}
 
 
@@ -379,7 +368,7 @@ instance (MonadIO m, Memory.PtrType t)
       => Data.Destructor1 m (SmallVectorA t alloc n) where
     destruct1 = \a -> liftIO $ do
         whenM (usesDynamicMemory a)
-            $ Memory.free =<< Struct.read _externalMem a
+            $ Memory.free =<< Struct.read fieldExternalMem a
     {-# INLINE destruct1 #-}
 
 -- WARNING: this instance is strange. It does not release self-memory,
