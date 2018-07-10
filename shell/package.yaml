@@ -7,8 +7,6 @@ library:
     source-dirs:
         - src
     dependencies:
-        - ansi-wl-pprint
-        - async
         - base
         - bimap
         - containers
@@ -16,16 +14,11 @@ library:
         - filepath
         - layered-state
         - luna-core
-        - luna-cpp-containers
-        - luna-data-tag
-        - luna-debug
         - luna-exception
         - luna-passes
         - luna-project
         - luna-runtime
         - luna-stdlib
-        - luna-syntax-text-lexer
-        - luna-syntax-text-model
         - luna-syntax-text-parser
         - mtl
         - optparse-applicative
