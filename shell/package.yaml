@@ -36,7 +36,7 @@ library:
 
 executables:
     luna:
-        main: src/Main.hs
+        main: src-app/Main.hs
         ghc-options: -threaded "-with-rtsopts=-N -T"
         dependencies:
             - base
