@@ -14,23 +14,88 @@ import Data.Vector.Unboxed.Mutable (MVector)
 
 
 
+
+
 type family ToList (a :: k) :: [Type]
 
 data Inputs  a = Inputs  [Type]
 data Outputs a = Outputs [Type]
 
-data StaticLayers  = StaticLayers  [Type]
-data DynamicLayers = DynamicLayers [Type]
 
 
-type instance ToList ('StaticLayers lst) = lst
 
+
+----------------------
+-- === Property === --
+----------------------
+
+-- === Definition === --
+
+type family DataKind (key :: Type) :: Type
+
+type family Get key obj :: Type -- DataKind key -- GHC Bug until 8.6
+
+
+type family MapGet key objs where
+    MapGet _ '[] = '[]
+    MapGet k (a ': as) = Get k a ': MapGet k as
+
+
+
+---------------------------
+-- === Specification === --
+---------------------------
 
 type family Spec (tgt :: Type) (key :: Type) :: key
 
 
 
+-------------------------------
+-- === Graph Description === --
+-------------------------------
+
+-- === Definition === --
+
+data LayerData
+data StaticLayers  = StaticLayers  [Type]
+data DynamicLayers = DynamicLayers [Type]
+
+
+-- === Utils === --
+
+type GetStaticLayers  g = MapGet LayerData (ToList (Spec g StaticLayers))
+type GetDynamicLayers g = MapGet LayerData (ToList (Spec g DynamicLayers))
+
+
+-- === Instances === --
+
+type instance ToList ('StaticLayers  lst) = lst
+type instance ToList ('DynamicLayers lst) = lst
+
+
+
+
+
+
+
+
+
+
+-----------------------------
+-- === ComponentLayout === --
+-----------------------------
+
+-- === Definition === --
+
 data ComponentLayout (graph :: Type) (tag :: Type)
+
+
+-- === Instances === --
+
+type instance Struct.Fields (ComponentLayout graph tag) = GetStaticLayers graph
+type instance Struct.FieldType layer (ComponentLayout graph tag)
+            = Get LayerData layer
+
 
 
 
@@ -43,6 +108,9 @@ data ComponentLayout (graph :: Type) (tag :: Type)
 newtype Component (graph :: Type) (tag :: Type) = Component
     (Struct (Spec graph Memory.ManagementType) (ComponentLayout graph tag))
 makeLenses ''Component
+
+
+-- === IsComponent === --
 
 class IsComponent a where
     type family Graph a
@@ -66,6 +134,8 @@ instance IsComponent (Component graph tag) where
     component = id
     {-# INLINE component #-}
 
+
+-- === Instances === --
 
 instance Struct.IsStruct (Component grah tag)
 type instance Memory.Management (Component graph tag)
@@ -137,13 +207,13 @@ data Model
 
 -- LayerData is graph abstraction, not IR abstraction, so it does not know about layout
 
-type family LayerData layer
-type family MapLayerData layers where
-    MapLayerData '[]       = '[]
-    MapLayerData (l ': ls) = LayerData l ': MapLayerData ls
+-- type family LayerData layer
+-- type family MapLayerData layers where
+--     MapLayerData '[]       = '[]
+--     MapLayerData (l ': ls) = LayerData l ': MapLayerData ls
 
 
-type instance LayerData Model = Layouted UniTerm
+type instance Get LayerData Model = Layouted UniTerm
 
 
 -- type family ValKind (t :: Type) :: Type
@@ -163,7 +233,7 @@ type family ApplyLayout layout t where
 
 -- maybe it should be named GraphReader and Reader shuld discover graph type?
 class Reader graph tag layer m where
-    read :: Component graph tag -> m (LayerData layer)
+    read :: Component graph tag -> m (Get LayerData layer)
 
 instance Struct.Reader2 layer (Component graph tag)
       => Reader graph tag layer m where
@@ -177,8 +247,7 @@ instance Struct.Reader2 layer (Component graph tag)
 
 -- readLayer :: () => IRComponent graph tag layout -> m
 
-type instance Struct.FieldType layer (ComponentLayout graph tag) = LayerData layer
-type instance Struct.Fields (ComponentLayout graph tag) = MapLayerData (ToList (Spec graph StaticLayers))
+
 
 -- type family ValKind t where
 --     ValKind (t :: Type)
@@ -187,18 +256,6 @@ type instance Struct.Fields (ComponentLayout graph tag) = MapLayerData (ToList (
 -- type instance ValKind Type = Type
 
 
-type family DataKind (key :: Type) :: Type
-
-type family Get key obj :: DataKind key
-
-
-data LayerData2
-type instance DataKind LayerData2 = Type
-
--- test = Struct.construct @(Node X)
 
 
 
-
-
-type instance Get LayerData2 Model = Layouted UniTerm
