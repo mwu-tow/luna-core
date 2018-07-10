@@ -61,6 +61,13 @@ file filePath = do
     liftIO . Directory.setCurrentDirectory . Path.fromAbsDir
         $ Path.parent filePath
 
+    Graph.encodeAndEval @ShellInterpreter $ Scheduler.evalT $ do
+        fileImports <- Project.fileImportPaths filePath
+
+        print fileImports
+
+        pure ()
+
     putStrLn "Single-file mode not yet supported."
 
     liftIO $ Directory.setCurrentDirectory originalDir
