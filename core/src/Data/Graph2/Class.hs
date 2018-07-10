@@ -3,7 +3,7 @@
 
 module Data.Graph2.Class where
 
-import Prologue
+import Prologue hiding (ToList)
 
 import qualified Data.Storable2              as Struct
 import qualified Data.Vector.Unboxed.Mutable as Vector
@@ -13,15 +13,26 @@ import Data.Storable2              (Struct)
 import Data.Vector.Unboxed.Mutable (MVector)
 
 
+
+type family ToList (a :: k) :: [Type]
+
 data Inputs  a = Inputs  [Type]
 data Outputs a = Outputs [Type]
 
+data StaticLayers  = StaticLayers  [Type]
+data DynamicLayers = DynamicLayers [Type]
 
-type family Spec (graph :: Type) (key :: Type) :: key
+
+type instance ToList ('StaticLayers lst) = lst
+
+
+type family Spec (tgt :: Type) (key :: Type) :: key
 
 
 
-data ComponentStruct (graph :: Type) (tag :: Type)
+data ComponentLayout (graph :: Type) (tag :: Type)
+
+
 
 -----------------------
 -- === Component === --
@@ -29,8 +40,8 @@ data ComponentStruct (graph :: Type) (tag :: Type)
 
 -- === Definition === --
 
-newtype Component (graph :: Type) (tag :: Type)
-      = Component (Struct (Spec graph Memory.ManagementType) (ComponentStruct graph tag))
+newtype Component (graph :: Type) (tag :: Type) = Component
+    (Struct (Spec graph Memory.ManagementType) (ComponentLayout graph tag))
 makeLenses ''Component
 
 class IsComponent a where
@@ -59,6 +70,8 @@ instance IsComponent (Component graph tag) where
 instance Struct.IsStruct (Component grah tag)
 type instance Memory.Management (Component graph tag)
             = Memory.Management (Unwrapped (Component graph tag))
+
+
 
 ------------------
 -- === Node === --
@@ -123,15 +136,22 @@ type SomeUniTerm = UniTerm ()
 data Model
 
 -- LayerData is graph abstraction, not IR abstraction, so it does not know about layout
+
 type family LayerData layer
+type family MapLayerData layers where
+    MapLayerData '[]       = '[]
+    MapLayerData (l ': ls) = LayerData l ': MapLayerData ls
+
 
 type instance LayerData Model = Layouted UniTerm
+
 
 -- type family ValKind (t :: Type) :: Type
 
 type instance Spec X key = SpecX key
 type family SpecX key :: key where
     SpecX Memory.Allocator = Memory.StdAllocator
+    SpecX StaticLayers     = 'StaticLayers '[Model]
     -- SpecX (Inputs A)       = 'Inputs '[Int]
     -- SpecX (Inputs B)       = 'Inputs '[String]
     -- SpecX Int = Int
@@ -157,7 +177,8 @@ instance Struct.Reader2 layer (Component graph tag)
 
 -- readLayer :: () => IRComponent graph tag layout -> m
 
-type instance Struct.FieldType layer (ComponentStruct graph tag) = LayerData layer
+type instance Struct.FieldType layer (ComponentLayout graph tag) = LayerData layer
+type instance Struct.Fields (ComponentLayout graph tag) = MapLayerData (ToList (Spec graph StaticLayers))
 
 -- type family ValKind t where
 --     ValKind (t :: Type)
@@ -165,3 +186,19 @@ type instance Struct.FieldType layer (ComponentStruct graph tag) = LayerData lay
 -- type instance ValKind Memory.Allocator = Memory.Allocator
 -- type instance ValKind Type = Type
 
+
+type family DataKind (key :: Type) :: Type
+
+type family Get key obj :: DataKind key
+
+
+data LayerData2
+type instance DataKind LayerData2 = Type
+
+-- test = Struct.construct @(Node X)
+
+
+
+
+
+type instance Get LayerData2 Model = Layouted UniTerm
