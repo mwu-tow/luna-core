@@ -3,21 +3,22 @@ module Luna.Project where
 
 import Prologue
 
-import qualified Data.Bimap              as Bimap
-import qualified OCI.Data.Name           as Name
-import qualified Path                    as Path
-import qualified System.Directory        as Dir
-import qualified System.FilePath         as FilePath
-import qualified System.FilePath.Find    as Find
+import qualified Data.Bimap           as Bimap
+import qualified Data.Map             as Map
+import qualified OCI.Data.Name        as Name
+import qualified Path                 as Path
+import qualified System.Directory     as Dir
+import qualified System.FilePath      as FilePath
+import qualified System.FilePath.Find as Find
 
 import Control.Arrow           ((&&&))
 import Control.Exception.Safe  (try, tryAny)
 import Data.Bimap              (Bimap)
+import Data.Map                (Map)
 import OCI.Data.Name           (Name)
 import OCI.Data.Name.Qualified (Qualified)
 import Path                    (Path, Abs, Rel, File, Dir, (</>))
 import System.Environment      (getEnv)
-
 
 -- === Constants === --
 
@@ -164,16 +165,24 @@ projectImportPaths projectRoot = do
                     : dependencies
     pure importPaths
 
-fileImportPaths :: (MonadIO m, MonadThrow m)
-                => Path Abs File -> m [(Name, FilePath.FilePath)]
-fileImportPaths filePath = do
+fileSourcePaths :: (MonadIO m, MonadThrow m)
+                => Path Abs File -> m (Map Name.Qualified FilePath.FilePath)
+fileSourcePaths lunaFile = do
     lunaRoot <- liftIO $ Dir.canonicalizePath =<< getEnv lunaRootEnv
-    let fileName = Path.filename filePath
-        {- importPaths = ("Std", lunaRoot <> "/Std/") -}
-                    {- : (convert fileName &&& Path.toFilePath) fileName -}
-                    {- : dependencies -}
+    let filePath    = Path.fromAbsFile lunaFile
+        fileName    = FilePath.dropExtension . Path.fromRelFile
+            $ Path.filename lunaFile
+        fileImports = [("Std", lunaRoot <> "/Std/")]
 
-    pure []
+    importPaths   <- sequence $ Path.parseAbsDir . snd <$> fileImports
+    importSources <- sequence $ findProjectSources <$> importPaths
+
+    let projSrcMap = Map.map Path.toFilePath $ foldl' Map.union Map.empty
+            $ Bimap.toMapR <$> importSources
+        allSrcMap  = Map.insert (convertVia @Name fileName)
+            (Path.toFilePath lunaFile) projSrcMap
+
+    pure allSrcMap
 
 isLunaProject :: (MonadIO m, MonadThrow m)
               => Path Abs Dir -> m Bool

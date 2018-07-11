@@ -5,10 +5,6 @@ import Prologue
 import qualified Luna.Shell.Command                as Command
 import qualified Luna.Shell.Option                 as Option
 
--- TODO [Ara] Resolve project paths (including stdlib, local libraries, source).
--- TODO [Ara] Execute a set of passes (static set for now).
--- TODO [Ara] Execute the results.
--- TODO [Ara] Single file mode.
 -- TODO [Ara] Gracefully display errors (once TC integrated).
 
 ------------------
