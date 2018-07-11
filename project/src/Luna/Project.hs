@@ -164,6 +164,17 @@ projectImportPaths projectRoot = do
                     : dependencies
     pure importPaths
 
+fileImportPaths :: (MonadIO m, MonadThrow m)
+                => Path Abs File -> m [(Name, FilePath.FilePath)]
+fileImportPaths filePath = do
+    lunaRoot <- liftIO $ Dir.canonicalizePath =<< getEnv lunaRootEnv
+    let fileName = Path.filename filePath
+        {- importPaths = ("Std", lunaRoot <> "/Std/") -}
+                    {- : (convert fileName &&& Path.toFilePath) fileName -}
+                    {- : dependencies -}
+
+    pure []
+
 isLunaProject :: (MonadIO m, MonadThrow m)
               => Path Abs Dir -> m Bool
 isLunaProject path = isJust <$> findProjectRoot path

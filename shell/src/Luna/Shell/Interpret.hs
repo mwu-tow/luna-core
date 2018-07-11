@@ -2,22 +2,23 @@ module Luna.Shell.Interpret where
 
 import Prologue
 
-import qualified Data.Bimap                            as Bimap
-import qualified Data.Graph.Data.Graph.Class           as Graph
-import qualified Data.Map                              as Map
-import qualified Luna.IR                               as IR
-import qualified Luna.Pass.Evaluation.EvaluateUnits    as EvaluateUnits
-import qualified Luna.Pass.Preprocess.PreprocessUnit   as PreprocessUnit
-import qualified Luna.Pass.Resolve.Data.Resolution     as Res
-import qualified Luna.Pass.Scheduler                   as Scheduler
-import qualified Luna.Pass.Sourcing.Data.Unit          as Unit
-import qualified Luna.Pass.Sourcing.UnitLoader         as ModLoader
-import qualified Luna.Pass.Sourcing.UnitMapper         as UnitMap
-import qualified Luna.Project                          as Project
-import qualified Luna.Runtime                          as Runtime
-import qualified Luna.Std                              as Std
-import qualified Path                                  as Path
-import qualified System.Directory                      as Directory
+import qualified Data.Bimap                          as Bimap
+import qualified Data.Graph.Data.Graph.Class         as Graph
+import qualified Data.Map                            as Map
+import qualified Luna.IR                             as IR
+import qualified Luna.Pass.Evaluation.EvaluateUnits  as EvaluateUnits
+import qualified Luna.Pass.Preprocess.PreprocessUnit as PreprocessUnit
+import qualified Luna.Pass.Resolve.Data.Resolution   as Res
+import qualified Luna.Pass.Scheduler                 as Scheduler
+import qualified Luna.Pass.Sourcing.Data.Unit        as Unit
+import qualified Luna.Pass.Sourcing.UnitLoader       as ModLoader
+import qualified Luna.Pass.Sourcing.UnitMapper       as UnitMap
+import qualified Luna.Project                        as Project
+import qualified Luna.Runtime                        as Runtime
+import qualified Luna.Shell.CWD                      as CWD
+import qualified Luna.Std                            as Std
+import qualified Path                                as Path
+import qualified System.Directory                    as Directory
 
 import Control.Monad.Exception               (MonadExceptions)
 import Luna.Syntax.Text.Parser.Data.CodeSpan (CodeSpan)
@@ -54,7 +55,24 @@ file :: ( MonadIO m, MonadThrow m
         , MonadExceptions '[Scheduler.Error, ModLoader.UnitLoadingError] m
         , MonadFix m )
      => Path Abs File -> m ()
-file _ = putStrLn "Single-file mode is not yet supported."
+file filePath = do
+    -- Swap the working directory
+    originalDir <- CWD.get
+    liftIO . Directory.setCurrentDirectory . Path.fromAbsDir
+        $ Path.parent filePath
+
+    Graph.encodeAndEval @ShellInterpreter $ Scheduler.evalT $ do
+        fileImports <- Project.fileImportPaths filePath
+
+        print fileImports
+
+        pure ()
+
+    putStrLn "Single-file mode not yet supported."
+
+    liftIO $ Directory.setCurrentDirectory originalDir
+
+    pure ()
 
 project :: ( MonadIO m, MonadThrow m
            , MonadExceptions '[Scheduler.Error, ModLoader.UnitLoadingError] m
@@ -62,8 +80,7 @@ project :: ( MonadIO m, MonadThrow m
         => Path Abs Dir -> m ()
 project projPath = do
     -- Swap the working directory
-    originalDir <- liftIO $ Directory.canonicalizePath
-               <$> Directory.getCurrentDirectory
+    originalDir <- CWD.get
     liftIO . Directory.setCurrentDirectory $ Path.fromAbsDir projPath
 
     Graph.encodeAndEval @ShellInterpreter $ Scheduler.evalT $ do
@@ -111,7 +128,7 @@ project projPath = do
         liftIO $ Runtime.runIO mainFunc
 
     -- Swap the working directory back
-    _ <- liftIO $ Directory.setCurrentDirectory <$> originalDir
+    liftIO $ Directory.setCurrentDirectory originalDir
 
     pure ()
 
