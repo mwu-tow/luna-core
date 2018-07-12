@@ -123,20 +123,20 @@ file filePath = do
 
     liftIO $ Directory.setCurrentDirectory originalDir
 
-project :: (ShellMonad m) => Path Abs Dir -> m ()
-project projPath = do
+package :: (ShellMonad m) => Path Abs Dir -> m ()
+package pkgPath = do
     -- Swap the working directory
     originalDir <- CWD.get
-    liftIO . Directory.setCurrentDirectory $ Path.fromAbsDir projPath
+    liftIO . Directory.setCurrentDirectory $ Path.fromAbsDir pkgPath
 
-    projectRoot    <- fromJust projPath <$> Package.findPackageRoot projPath
-    projectImports <- Package.packageImportPaths projectRoot
-    importPaths    <- sequence $ Path.parseAbsDir . snd <$> projectImports
+    packageRoot    <- fromJust pkgPath <$> Package.findPackageRoot pkgPath
+    packageImports <- Package.packageImportPaths packageRoot
+    importPaths    <- sequence $ Path.parseAbsDir . snd <$> packageImports
     projectSrcs    <- sequence $ Package.findPackageSources <$> importPaths
 
     let pkgSrcMap    = Map.map Path.toFilePath . foldl' Map.union Map.empty
             $ Bimap.toMapR <$> projectSrcs
-        mainFileName = (convert $ Package.getPackageName projectRoot) <> "."
+        mainFileName = (convert $ Package.getPackageName packageRoot) <> "."
             <> Package.mainFileName
 
     interpretWithMain mainFileName pkgSrcMap

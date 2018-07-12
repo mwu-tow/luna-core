@@ -143,20 +143,20 @@ run (RunOpts target) = liftIO $ catch compute recover where
                 if Path.fileExtension filePath /= Package.lunaFileExt then
                     hPutStrLn stderr $ canonicalPath <> " is not a Luna file."
                 else Interpret.file filePath
-            else if projectExists then runProject canonicalPath
+            else if projectExists then runPackage canonicalPath
             else hPutStrLn stderr $ target <> " not found."
         else do
             cwd <- CWD.get
-            runProject cwd
+            runPackage cwd
 
     -- FIXME This can be done much better.
     recover (e :: SomeException) = hPutStrLn stderr $ displayException e
 
-    runProject path = do
-        projectPath   <- Path.parseAbsDir path
-        isLunaPackage <- Package.isLunaPackage projectPath
+    runPackage path = do
+        packagePath   <- Path.parseAbsDir path
+        isLunaPackage <- Package.isLunaPackage packagePath
 
-        if isLunaPackage then Interpret.project projectPath
+        if isLunaPackage then Interpret.package packagePath
         else hPutStrLn stderr $ path <> " is not a Luna Package."
 
 
