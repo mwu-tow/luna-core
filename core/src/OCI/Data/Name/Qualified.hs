@@ -46,9 +46,14 @@ instance Convertible Qualified Name.Name where
     {-# INLINE convert #-}
 
 instance Convertible [Name.Name] Qualified where
-    convert = convert . Name.concat . intersperse (convert ("." :: String))
+    convert = convert . Name.concat . intersperse (convert ".")
     {-# INLINE convert #-}
 
 instance Convertible Qualified String where
     convert = convertVia @Name.Name
     {-# INLINE convert #-}
+
+instance Convertible String Qualified where
+    convert = convertVia @Name.Name
+    {-# INLINE convert #-}
+

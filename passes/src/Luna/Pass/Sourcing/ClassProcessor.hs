@@ -80,7 +80,7 @@ generateGetter :: Pass.Interface ClassProcessor m
 generateGetter consName fieldsCount fieldPos fieldName = do
     retVar   <- IR.var  fieldName
     matchVar <- IR.var' fieldName
-    selfVar  <- IR.var  $ convert ("self" :: String)
+    selfVar  <- IR.var  $ convert "self"
     funName  <- IR.var  fieldName
     blanks   <- sequence $ take (fieldsCount - 1) $ repeat IR.blank'
     let matchers :: [IR.SomeTerm] =  take fieldPos blanks
@@ -149,6 +149,6 @@ addSelf fun = do
     name <- IR.source n
     args <- traverse IR.source =<< ComponentVector.toList as
     body <- IR.source b
-    self <- IR.var' $ convert ("self" :: String)
+    self <- IR.var' $ convert "self"
     Layout.unsafeRelayout <$> IR.function name (self : args) body
 

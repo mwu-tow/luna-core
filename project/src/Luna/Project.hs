@@ -3,22 +3,21 @@ module Luna.Project where
 
 import Prologue
 
-import qualified Data.Bimap           as Bimap
-import qualified Data.Map             as Map
-import qualified OCI.Data.Name        as Name
-import qualified Path                 as Path
-import qualified System.Directory     as Dir
-import qualified System.FilePath      as FilePath
-import qualified System.FilePath.Find as Find
+import qualified Data.Bimap             as Bimap
+import qualified Data.Map               as Map
+import qualified OCI.Data.Name          as Name
+import qualified Path                   as Path
+import qualified System.Directory       as Dir
+import qualified System.FilePath        as FilePath
+import qualified System.FilePath.Find   as Find
+import qualified System.Environment     as Environment
+import qualified Control.Exception.Safe as Exception
 
 import Control.Arrow           ((&&&))
-import Control.Exception.Safe  (try, tryAny)
+import Control.Monad.Exception (MonadException)
 import Data.Bimap              (Bimap)
 import Data.Map                (Map)
-import OCI.Data.Name           (Name)
-import OCI.Data.Name.Qualified (Qualified)
 import Path                    (Path, Abs, Rel, File, Dir, (</>))
-import System.Environment      (getEnv)
 
 -- === Constants === --
 
@@ -37,10 +36,10 @@ localLibsPath = $(Path.mkRelDir "local_libs")
 sourceDirectory :: Path Rel Dir
 sourceDirectory = $(Path.mkRelDir "src")
 
-mainFileName :: Qualified
+mainFileName :: Name.Qualified
 mainFileName = "Main"
 
-mainFuncName :: Qualified
+mainFuncName :: Name.Qualified
 mainFuncName = "main"
 
 -- === API === --
@@ -63,7 +62,8 @@ instance Exception ProjectNotFoundException where
     displayException (ProjectNotFoundException file) =
         "File \"" <> Path.toFilePath file <> "\" is not a part of any project."
 
-projectRootForFile :: (MonadIO m, MonadThrow m)
+projectRootForFile :: ( MonadIO m, MonadThrow m
+                      , MonadException ProjectNotFoundException m )
                    => Path Abs File -> m (Path Abs Dir)
 projectRootForFile file = do
     maybeRoot <- findProjectRoot $ Path.parent file
@@ -78,7 +78,8 @@ getRelativePathForModule :: (MonadIO m, MonadCatch m)
                          -> Path Abs File
                          -> m (Maybe (Path Rel File))
 getRelativePathForModule projectFile =
-    fmap eitherToMaybe . try . Path.stripProperPrefix (Path.parent projectFile)
+    fmap eitherToMaybe . Exception.try . Path.stripProperPrefix
+        (Path.parent projectFile)
     where
         eitherToMaybe :: Either Path.PathException (Path Rel File)
                       -> Maybe (Path Rel File)
@@ -108,16 +109,14 @@ findProjectRoot dir = getLunaProjectsFromDir dir >>= \case
     [_] -> pure $ Just dir
     _             -> pure Nothing
 
-getProjectName :: Path Abs Dir -> Name
+getProjectName :: Path Abs Dir -> Name.Name
 getProjectName =
     convert . FilePath.takeBaseName . FilePath.takeDirectory . Path.toFilePath
 
-mkQualName :: Name -> Path Rel File -> Name.Qualified
+mkQualName :: Name.Name -> Path Rel File -> Name.Qualified
 mkQualName projectName file = qualName where
-    qualName        = convert $ concat [ [projectName]
-                                         , convert <$> path
-                                         , [convert moduleName]
-                                         ]
+    qualName        = convert $ concat nameParts
+    nameParts       = [ [projectName], convert <$> path, [convert moduleName] ]
     path            = filter (/= ".") $ FilePath.splitDirectories dir
     moduleName      = FilePath.dropExtensions filename
     (dir, filename) = FilePath.splitFileName (Path.toFilePath file)
@@ -141,11 +140,12 @@ findProjectSources project = do
     pure $ Bimap.fromList modules
 
 listDependencies :: (MonadIO m, MonadThrow m)
-                 => Path Abs Dir -> m [(Name, FilePath.FilePath)]
+                 => Path Abs Dir -> m [(Name.Name, FilePath.FilePath)]
 listDependencies projectSrc = do
     let lunaModules     = projectSrc </> localLibsPath
         lunaModulesPath = Path.toFilePath lunaModules
-    dependencies <- liftIO . tryAny $ Dir.listDirectory lunaModulesPath
+    dependencies <- liftIO . Exception.tryAny
+        $ Dir.listDirectory lunaModulesPath
     case dependencies of
         Left _           -> pure []
         Right directDeps -> do
@@ -156,9 +156,10 @@ listDependencies projectSrc = do
                   <> concat indirectDeps
 
 projectImportPaths :: (MonadIO m, MonadThrow m)
-                   => Path Abs Dir -> m [(Name, FilePath.FilePath)]
+                   => Path Abs Dir -> m [(Name.Name, FilePath.FilePath)]
 projectImportPaths projectRoot = do
-    lunaroot     <- liftIO $ Dir.canonicalizePath =<< getEnv lunaRootEnv
+    lunaroot     <- liftIO $ Dir.canonicalizePath
+        =<< Environment.getEnv lunaRootEnv
     dependencies <- listDependencies projectRoot
     let importPaths = ("Std", lunaroot <> "/Std/")
                     : (getProjectName &&& Path.toFilePath) projectRoot
@@ -168,7 +169,8 @@ projectImportPaths projectRoot = do
 fileSourcePaths :: (MonadIO m, MonadThrow m)
                 => Path Abs File -> m (Map Name.Qualified FilePath.FilePath)
 fileSourcePaths lunaFile = do
-    lunaRoot <- liftIO $ Dir.canonicalizePath =<< getEnv lunaRootEnv
+    lunaRoot <- liftIO $ Dir.canonicalizePath
+        =<< Environment.getEnv lunaRootEnv
     let filePath    = Path.fromAbsFile lunaFile
         fileName    = FilePath.dropExtension . Path.fromRelFile
             $ Path.filename lunaFile
@@ -179,7 +181,7 @@ fileSourcePaths lunaFile = do
 
     let projSrcMap = Map.map Path.toFilePath $ foldl' Map.union Map.empty
             $ Bimap.toMapR <$> importSources
-        allSrcMap  = Map.insert (convertVia @Name fileName)
+        allSrcMap  = Map.insert (convertVia @Name.Name fileName)
             (Path.toFilePath lunaFile) projSrcMap
 
     pure allSrcMap
