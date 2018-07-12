@@ -21,12 +21,12 @@ import qualified OCI.Data.Name                       as Name
 import qualified Path                                as Path
 import qualified System.Directory                    as Directory
 import qualified System.FilePath                     as FilePath
+import qualified System.IO                           as IO
 
 import Control.Monad.Exception               (MonadExceptions)
 import Data.Map                              (Map)
 import Luna.Syntax.Text.Parser.Data.CodeSpan (CodeSpan)
 import Path                                  (Path, Abs, Dir, File)
-import System.IO                             (stderr, hPutStrLn)
 
 
 
@@ -94,7 +94,7 @@ interpretWithMain name sourcesMap = Graph.encodeAndEval @ShellInterpreter
             case Map.lookup unitName units of
                 Just uni -> PreprocessUnit.preprocessUnit @ShellInterpreter
                             resolver uni
-                Nothing  -> liftIO $ hPutStrLn stderr $
+                Nothing  -> liftIO $ IO.hPutStrLn IO.stderr $
                             "Unable to resolve compilation unit "
                             <> convert unitName
 
