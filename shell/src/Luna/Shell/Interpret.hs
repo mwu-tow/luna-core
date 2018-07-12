@@ -6,6 +6,7 @@ import qualified Data.Bimap                          as Bimap
 import qualified Data.Graph.Data.Graph.Class         as Graph
 import qualified Data.Map                            as Map
 import qualified Luna.IR                             as IR
+import qualified Luna.Package                        as Package
 import qualified Luna.Pass.Evaluation.EvaluateUnits  as EvaluateUnits
 import qualified Luna.Pass.Preprocess.PreprocessUnit as PreprocessUnit
 import qualified Luna.Pass.Resolve.Data.Resolution   as Res
@@ -13,7 +14,6 @@ import qualified Luna.Pass.Scheduler                 as Scheduler
 import qualified Luna.Pass.Sourcing.Data.Unit        as Unit
 import qualified Luna.Pass.Sourcing.UnitLoader       as ModLoader
 import qualified Luna.Pass.Sourcing.UnitMapper       as UnitMap
-import qualified Luna.Project                        as Project
 import qualified Luna.Runtime                        as Runtime
 import qualified Luna.Shell.CWD                      as CWD
 import qualified Luna.Std                            as Std
@@ -100,7 +100,7 @@ interpretWithMain name sourcesMap = Graph.encodeAndEval @ShellInterpreter
 
         computedUnits <- EvaluateUnits.evaluateUnits @ShellInterpreter units
         mainFunc      <- Runtime.lookupSymbol computedUnits name
-            $ convert Project.mainFuncName
+            $ convert Package.mainFuncName
 
         putStrLn $ "Running in interpreted mode."
         liftIO $ Runtime.runIO mainFunc
@@ -114,7 +114,7 @@ file filePath = do
     liftIO . Directory.setCurrentDirectory . Path.fromAbsDir
         $ Path.parent filePath
 
-    fileSources <- Project.fileSourcePaths filePath
+    fileSources <- Package.fileSourcePaths filePath
 
     let fileName = convertVia @Name.Name . FilePath.dropExtension
             . Path.fromRelFile $ Path.filename filePath
@@ -129,17 +129,17 @@ project projPath = do
     originalDir <- CWD.get
     liftIO . Directory.setCurrentDirectory $ Path.fromAbsDir projPath
 
-    projectRoot    <- fromJust projPath <$> Project.findProjectRoot projPath
-    projectImports <- Project.projectImportPaths projectRoot
+    projectRoot    <- fromJust projPath <$> Package.findPackageRoot projPath
+    projectImports <- Package.packageImportPaths projectRoot
     importPaths    <- sequence $ Path.parseAbsDir . snd <$> projectImports
-    projectSrcs    <- sequence $ Project.findProjectSources <$> importPaths
+    projectSrcs    <- sequence $ Package.findPackageSources <$> importPaths
 
-    let projSrcMap   = Map.map Path.toFilePath . foldl' Map.union Map.empty
+    let pkgSrcMap    = Map.map Path.toFilePath . foldl' Map.union Map.empty
             $ Bimap.toMapR <$> projectSrcs
-        mainFileName = (convert $ Project.getProjectName projectRoot) <> "."
-            <> Project.mainFileName
+        mainFileName = (convert $ Package.getPackageName projectRoot) <> "."
+            <> Package.mainFileName
 
-    interpretWithMain mainFileName projSrcMap
+    interpretWithMain mainFileName pkgSrcMap
 
     -- Swap the working directory back
     liftIO $ Directory.setCurrentDirectory originalDir

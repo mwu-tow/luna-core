@@ -3,7 +3,7 @@ module Luna.Shell.Command where
 import Prologue
 
 import qualified Control.Monad.State.Layered as State
-import qualified Luna.Project                as Project
+import qualified Luna.Package                as Package
 import qualified Luna.Shell.CWD              as CWD
 import qualified Luna.Shell.Interpret        as Interpret
 import qualified Path                        as Path
@@ -140,7 +140,7 @@ run (RunOpts target) = liftIO $ catch compute recover where
 
             if fileExists then do
                 filePath <- Path.parseAbsFile canonicalPath
-                if Path.fileExtension filePath /= Project.lunaFileExt then
+                if Path.fileExtension filePath /= Package.lunaFileExt then
                     hPutStrLn stderr $ canonicalPath <> " is not a Luna file."
                 else Interpret.file filePath
             else if projectExists then runProject canonicalPath
@@ -154,10 +154,10 @@ run (RunOpts target) = liftIO $ catch compute recover where
 
     runProject path = do
         projectPath   <- Path.parseAbsDir path
-        isLunaProject <- Project.isLunaProject projectPath
+        isLunaPackage <- Package.isLunaPackage projectPath
 
-        if isLunaProject then Interpret.project projectPath
-        else hPutStrLn stderr $ path <> " is not a Luna Project."
+        if isLunaPackage then Interpret.project projectPath
+        else hPutStrLn stderr $ path <> " is not a Luna Package."
 
 
 
@@ -172,20 +172,20 @@ runLuna command = case command of
         Build    _ -> putStrLn "Building of executables is not yet implemented."
         Clean    _ -> putStrLn "Cleaning build artefacts is not yet implemented."
         Doc        -> putStrLn "Building documentation is not yet implemented."
-        Download _ -> putStrLn "Downloading of projects is not yet implemented."
+        Download _ -> putStrLn "Downloading of packages is not yet implemented."
         Freeze   _ -> putStrLn
-            "Freezing project dependencies is not yet implemented."
-        Init     _ -> putStrLn "Creating new projects is not yet implemented."
+            "Freezing package dependencies is not yet implemented."
+        Init     _ -> putStrLn "Creating new packages is not yet implemented."
         Install  _ -> putStrLn "Installing dependencies is not yet implemented."
         Options  _ -> putStrLn "Setting compiler options is not yet implemented."
-        Publish  _ -> putStrLn "Publishing projects is not yet implemented."
+        Publish  _ -> putStrLn "Publishing packages is not yet implemented."
         Retract  _ -> putStrLn
-            "Retraction of project versions is not yet implemented."
+            "Retraction of package versions is not yet implemented."
         Rollback _ -> putStrLn "Rolling back dependencies is not yet implemented."
         Run opts   -> run opts
         Test     _ -> putStrLn "Executing test suites is not yet implemented."
         Unfreeze _ -> putStrLn
-            "Unfreezing project dependencies is not yet implemented."
+            "Unfreezing package dependencies is not yet implemented."
         Update   _ -> putStrLn
-            "Updating project dependencies is not yet implemented."
+            "Updating package dependencies is not yet implemented."
 

@@ -57,7 +57,7 @@ import qualified Luna.Pass.Sourcing.Data.Class as Class
 import qualified Luna.Pass.Sourcing.UnitMapper as UnitMap
 import qualified Luna.Pass.Evaluation.Interpreter as Interpreter
 import qualified Luna.Pass.Evaluation.EvaluateUnits as EvaluateUnits
-import qualified Luna.Project as Project
+import qualified Luna.Package as Package
 import qualified Data.Bimap as Bimap
 import qualified Path as Path
 
@@ -154,8 +154,8 @@ main :: IO ()
 main = Graph.encodeAndEval @ShellCompiler $ Scheduler.evalT $ do
     pstd <- Path.parseAbsDir "/Users/marcinkostrzewa/code/luna-core/stdlib/Std"
     ptest <- Path.parseAbsDir "/Users/marcinkostrzewa/luna/projects/OpenCV"
-    stdSourcesMap <- fmap Path.toFilePath . Bimap.toMapR <$> Project.findProjectSources pstd
-    testSourcesMap <- fmap Path.toFilePath . Bimap.toMapR <$> Project.findProjectSources ptest
+    stdSourcesMap <- fmap Path.toFilePath . Bimap.toMapR <$> Package.findPackageSources pstd
+    testSourcesMap <- fmap Path.toFilePath . Bimap.toMapR <$> Package.findPackageSources ptest
     ModLoader.init @ShellCompiler
     (finalize, stdUnitRef) <- liftIO Std.stdlib
     Scheduler.registerAttr @Unit.UnitRefsMap
@@ -195,13 +195,13 @@ main = Graph.encodeAndEval @ShellCompiler $ Scheduler.evalT $ do
 --         defaultStdPath = (parent . parent . parent $ exePath)
 --                     <</>> "config"
 --                     <</>> "env"
---         envStdPath     = Map.lookup Project.lunaRootEnv env
+--         envStdPath     = Map.lookup Package.lunaRootEnv env
 --         stdPath        = fromMaybe defaultStdPath envStdPath <</>> "Std"
 --     exists <- doesDirectoryExist stdPath
 --     if exists
 --         then putStrLn $ "Found the standard library at: " <> stdPath
 --         else die $ "Standard library not found. Set the "
---                 <> Project.lunaRootEnv
+--                 <> Package.lunaRootEnv
 --                 <> " environment variable"
 --     return stdPath
 

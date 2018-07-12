@@ -14,7 +14,7 @@ executables:
       - layouting
       - luna-core
       - luna-passes
-      - luna-project
+      - luna-package
       - luna-runtime
       - luna-stdlib
       - luna-syntax-text-lexer

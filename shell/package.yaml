@@ -15,8 +15,8 @@ library:
         - layered-state
         - luna-core
         - luna-exception
+        - luna-package
         - luna-passes
-        - luna-project
         - luna-runtime
         - luna-stdlib
         - luna-syntax-text-parser
