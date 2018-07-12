@@ -7,7 +7,7 @@ maintainer: Luna Team <contact@luna-lang.org>
 library:
     source-dirs:
         - src
-    other-modules: Paths_luna_project
+    other-modules: Paths_luna_package
 
 dependencies:
     - base

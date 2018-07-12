@@ -58,7 +58,7 @@ import qualified Luna.Pass.Sourcing.Data.Def        as Def
 import qualified Luna.Pass.Sourcing.Data.Unit       as Unit
 import qualified Luna.Pass.Sourcing.UnitLoader      as ModLoader
 import qualified Luna.Pass.Sourcing.UnitMapper      as UnitMap
-import qualified Luna.Project                       as Project
+import qualified Luna.Package                       as Package
 import qualified Path                               as Path
 
 import qualified Luna.Runtime             as Runtime
