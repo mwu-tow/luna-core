@@ -139,7 +139,6 @@ makeLenses ''Number
 
 checkSpecialVar :: Text32 -> Symbol
 checkSpecialVar = \case
-    "all"     -> KwAll
     "case"    -> KwCase
     "class"   -> KwClass
     "def"     -> KwDef
