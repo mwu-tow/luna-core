@@ -17,9 +17,11 @@ library:
         - src
     dependencies:
         - base
+        - call-stack
         - criterion
         - layered-state
         - lens
+        - lens-utils
         - perf
         - prologue
         - weigh
@@ -37,9 +39,12 @@ tests:
             - -with-rtsopts=-T
         dependencies:
             - base
+            - bytestring
             - hspec
             - hspec-expectations-lifted
+            - luna-benchmark
             - luna-ci
+            - luna-yaml-utils
             - prologue
 
 default-extensions:
