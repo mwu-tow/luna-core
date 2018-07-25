@@ -83,11 +83,14 @@ type family FieldType field layout :: Type
 
 -- === Utils === --
 
-type family ResolvePath path a where
-    ResolvePath path Imp           = Imp
-    ResolvePath (Path '[])       a = a
-    ResolvePath (Path (f ': fs)) a = ResolvePath (Path fs)
-                                     (FieldType f (Layout a))
+type family ResolvePath (path :: t) a where
+    ResolvePath path Imp = Imp
+    ResolvePath path a   = ResolvePath__ path a
+
+type family   ResolvePath__ (p :: k)  a
+type instance ResolvePath__ p         a = FieldType p (Layout a)
+type instance ResolvePath__ '[]       a = a
+type instance ResolvePath__ (p ': ps) a = ResolvePath__ ps (ResolvePath__ p a)
 
 type family LookupFieldType idx (fields :: [Type]) where
     LookupFieldType ('Just idx) fields = List.Index' idx fields
@@ -162,6 +165,7 @@ type instance FieldIdx (Label s) (Generic a)
    = FieldIdx (Label s) (FieldList (GenericFieldSig__ a))
 
 
+
 ------------------
 -- === Lens === --
 ------------------
@@ -177,7 +181,7 @@ type family ToPath (s :: k) :: [Type] where
 
 -- === Utils === --
 
-type AppliedLens a = Path '[] -> a
+type AppliedLens a = Path '[] -> Path a
 
 lens :: ∀ s. Lens s
 lens = \_ -> Path
@@ -248,20 +252,9 @@ instance Storable.KnownConstantSize (Fields layout)
 
 -- === Definition === --
 
-type Editor field a = (Reader field a, Writer field a)
-
-class Reader (lens :: Type) (a :: Type) where
-    readFieldIO :: a -> IO (ResolvePath lens a)
-
-class PathReader (path :: [Type]) (a :: Type) where
-class Reader2    (field :: Type) (a :: Type) where
-    -- readFieldIO2 :: a -> IO (ResolvePath lens a)
-
-class Writer (field :: Type) (a :: Type) where
-    writeFieldIO :: a -> ResolvePath field a -> IO ()
-
-instance (Reader2 f a, PathReader fs a) => PathReader (f ': fs) a
-instance PathReader '[] a
+type  Modifier path a = (Reader path a, Writer path a)
+class Reader   path a where readByTypeIO  :: a -> IO (ResolvePath path a)
+class Writer   path a where writeByTypeIO :: a -> ResolvePath path a -> IO ()
 
 type family FromPath p where FromPath (Path p) = p
 
@@ -273,36 +266,25 @@ type FieldRefPoke t a = (Memory.PtrType t, Storable.Poke Fieldx IO a)
 
 -- === API === --
 
-read :: ∀ field a m. (Reader field a, MonadIO m)
-     => AppliedLens field -> a -> m (ResolvePath field a)
-read = const $ readField @field
+read :: ∀ path a m. (Reader path a, MonadIO m)
+    => AppliedLens path -> a -> m (ResolvePath path a)
+read = const $ readByType @path
 {-# INLINE read #-}
 
-read2 :: ∀ path a m. (PathReader (FromPath path) a)
-     => AppliedLens path -> a -> m (ResolvePath path a)
-read2 = undefined -- const $ readField @field
-{-# INLINE read2 #-}
-
-
-read2' :: ∀ s a m path. (PathReader path a, path ~ ToPath s)
-    => a -> m (ResolvePath (Path path) a)
-read2' = undefined
-
-
-write :: ∀ field a m. (Writer field a, MonadIO m)
-    => AppliedLens field -> a -> ResolvePath field a -> m ()
-write = const $ writeField @field
+write :: ∀ path a m. (Writer path a, MonadIO m)
+    => AppliedLens path -> a -> ResolvePath path a -> m ()
+write = const $ writeByType @path
 {-# INLINE write #-}
 
-readField :: ∀ lens a m. (Reader lens a, MonadIO m)
-    => a -> m (ResolvePath lens a)
-readField = liftIO . readFieldIO @lens
-{-# INLINE readField #-}
+readByType :: ∀ path a m. (Reader path a, MonadIO m)
+    => a -> m (ResolvePath path a)
+readByType = liftIO . readByTypeIO @path
+{-# INLINE readByType #-}
 
-writeField :: ∀ field a m. (Writer field a, MonadIO m)
-    => a -> ResolvePath field a -> m ()
-writeField = liftIO .: writeFieldIO @field
-{-# INLINE writeField #-}
+writeByType :: ∀ path a m. (Writer path a, MonadIO m)
+    => a -> ResolvePath path a -> m ()
+writeByType = liftIO .: writeByTypeIO @path
+{-# INLINE writeByType #-}
 
 peekRef :: (FieldRefPeek t a, MonadIO m) => FieldRef t a -> m a
 peekRef = \a -> liftIO $ Memory.withUnmanagedPtr (unwrap a)
@@ -317,22 +299,26 @@ pokeRef = \a v -> liftIO $ Memory.withUnmanagedPtr (unwrap a)
 
 -- === Instances === --
 
-instance (Has field a, FieldRefPeek (Memory.Management a) (ResolvePath field a))
+instance {-# OVERLAPPABLE #-}
+    (Has field a, FieldRefPeek (Memory.Management a) (ResolvePath field a))
       => Reader field a where
-    readFieldIO = peekRef . fieldRef @field
-    {-# INLINE readFieldIO #-}
+    readByTypeIO = peekRef . fieldRef @field
+    {-# INLINE readByTypeIO #-}
 
-instance (Has field a, FieldRefPoke (Memory.Management a) (ResolvePath field a))
+instance {-# OVERLAPPABLE #-}
+    (Has field a, FieldRefPoke (Memory.Management a) (ResolvePath field a))
       => Writer field a where
-    writeFieldIO = pokeRef . fieldRef @field
-    {-# INLINE writeFieldIO #-}
+    writeByTypeIO = pokeRef . fieldRef @field
+    {-# INLINE writeByTypeIO #-}
 
 
 -- === Early resolution block === --
 
-type ImpField = Path '[Imp]
-instance {-# OVERLAPPABLE #-} Reader ImpField a   where readFieldIO = impossible
-instance {-# OVERLAPPABLE #-} Reader field    Imp where readFieldIO = impossible
+instance {-# OVERLAPPABLE #-} Reader Imp   a   where readByTypeIO = impossible
+instance {-# OVERLAPPABLE #-} Reader field Imp where readByTypeIO = impossible
+
+instance {-# OVERLAPPABLE #-} Writer Imp   a   where writeByTypeIO = impossible
+instance {-# OVERLAPPABLE #-} Writer field Imp where writeByTypeIO = impossible
 
 
 
@@ -343,22 +329,22 @@ instance {-# OVERLAPPABLE #-} Reader field    Imp where readFieldIO = impossible
 -- === Definition === --
 
 type  HasCtx a = (IsStruct a, Memory.PtrType (Memory.Management a))
-class HasCtx a => Has (field :: Type) (a :: Type) where
+class HasCtx a => Has path (a :: Type) where
     byteOffset :: Int
 
 
 -- === Utils === --
 
-fieldRef :: ∀ field a. Has field a => a -> FieldRefOf a (ResolvePath field a)
+fieldRef :: ∀ path a. Has path a => a -> FieldRefOf a (ResolvePath path a)
 fieldRef = \a ->
     let ptr = Memory.coercePtr . unwrap $ a ^. struct
-        off = byteOffset @field @a
+        off = byteOffset @path @a
     in FieldRef $! ptr `Memory.plus` off
 {-# INLINE fieldRef #-}
 
-ref :: ∀ field a. Has field a
-    => AppliedLens field -> a -> FieldRefOf a (ResolvePath field a)
-ref = const $ fieldRef @field
+ref :: ∀ path a. Has path a
+    => AppliedLens path -> a -> FieldRefOf a (ResolvePath path a)
+ref = const $ fieldRef @path
 {-# INLINE ref #-}
 
 
@@ -371,7 +357,7 @@ class HasField__
     (idx    :: Maybe Nat) where
     byteOffset__ :: Int
 
-instance HasCtx a => Has (Path '[]) a where
+instance HasCtx a => Has '[] a where
     byteOffset = 0
     {-# INLINE byteOffset #-}
 
@@ -379,29 +365,28 @@ instance
     ( layout ~ Layout a
     , idx    ~ FieldIdx field layout
     , HasCtx a
-    , HasField__ field fields layout idx
-    ) => Has (Path (field ': fields)) a where
-    byteOffset = byteOffset__ @field @fields @layout @idx
+    , HasField__ field path layout idx
+    ) => Has (field ': path) a where
+    byteOffset = byteOffset__ @field @path @layout @idx
     {-# INLINE byteOffset #-}
 
 instance {-# OVERLAPPABLE #-}
-    ( types    ~ Fields layout
-    , types'   ~ List.Take   idx types
-    , tgtType  ~ List.Index' idx types
-    , tgtField ~ Path fields
-    , Storable.KnownConstantSize types'
-    , Has tgtField tgtType
-    ) => HasField__ field fields layout ('Just idx) where
-    byteOffset__ = Storable.constantSize @types'
-                 + byteOffset @tgtField @tgtType
+    ( fields     ~ Fields layout
+    , prevFields ~ List.Take   idx fields
+    , tgtType    ~ List.Index' idx fields
+    , Storable.KnownConstantSize prevFields
+    , Has path tgtType
+    ) => HasField__ field path layout ('Just idx) where
+    byteOffset__ = Storable.constantSize @prevFields
+                 + byteOffset @path @tgtType
     {-# INLINE byteOffset__ #-}
 
 instance
-    ( types  ~ Fields layout
-    , types' ~ List.Take idx types
-    , Storable.KnownConstantSize types'
+    ( fields     ~ Fields layout
+    , prevFields ~ List.Take idx fields
+    , Storable.KnownConstantSize prevFields
     ) => HasField__ field '[] layout ('Just idx) where
-    byteOffset__ = Storable.constantSize @types'
+    byteOffset__ = Storable.constantSize @prevFields
     {-# INLINE byteOffset__ #-}
 
 
@@ -553,6 +538,9 @@ xxx = foo . bar
 
 -- -- -- Struct.Has (Lens "foo") a
 
+-- tst :: a -> _
+-- tst a = read xxx a
+
 xcons :: Int -> Int -> Int -> IO X
 xcons = construct @X
 
@@ -580,7 +568,7 @@ main = do
 -- data S
 --     = A X
 --     | B Y
---     | C Z
+    -- | C Z
 
 
 

@@ -232,12 +232,12 @@ type family ApplyLayout layout t where
     ApplyLayout layout t            = t
 
 -- maybe it should be named GraphReader and Reader shuld discover graph type?
-class Reader graph tag layer m where
+class Reader (graph :: Type) (tag :: Type) (layer :: Type) (m :: Type -> Type) where
     read :: Component graph tag -> m (Get LayerData layer)
 
-instance Struct.Reader2 layer (Component graph tag)
+instance (Struct.Reader layer (Component graph tag), MonadIO m)
       => Reader graph tag layer m where
-    read = Struct.read2' @layer
+    read = Struct.readByType @layer
     -- TODO: finish read2x implementations and care about infered constraints
 
 -- read :: ∀ layer graph tag m. Struct.Reader2 layer (Component graph tag)
@@ -256,6 +256,24 @@ instance Struct.Reader2 layer (Component graph tag)
 -- type instance ValKind Type = Type
 
 
+-- class Bar a
+-- class Foo a b where
+--     foo :: a -> b -> ()
 
 
+-- instance {-# OVERLAPPABLE #-} Bar a => Foo a b
+-- instance {-# OVERLAPPABLE #-} Bar a => Foo a Int
 
+-- -- ttt :: b -> ()
+-- -- ttt = foo (undefined :: Maybe Int)
+
+-- ttt2 :: ∀ (t :: Type) m (graph :: Type) (tag :: Type). MonadIO m => Component graph tag -> m (Struct.ResolvePath t (Component graph tag))
+-- ttt2 = Struct.readByType @t
+
+
+-- class C1 t m graph tag where
+--     c1tt :: Component graph tag -> m (Struct.ResolvePath t (Component graph tag))
+
+-- instance C1 t m graph tag where
+--     c1tt = Struct.readByType @t
+-- -- Struct.readType
