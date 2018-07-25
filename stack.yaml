@@ -65,4 +65,5 @@ packages:
     - lib/tuple-utils
     - lib/type-cache
     - lib/typelevel
+    - lib/yaml-utils
 
