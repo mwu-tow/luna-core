@@ -2,9 +2,10 @@ module Main where
 
 import Prologue
 
-import qualified Paths_luna_shell as Paths
-
--- TODO [AA] Use TH to get file location.
+import qualified Luna.Interpreter.Tests as Tests
+import qualified Path                   as Path
+import qualified System.Directory       as Directory
+import qualified System.FilePath        as FilePath
 
 
 
@@ -14,8 +15,7 @@ import qualified Paths_luna_shell as Paths
 
 main :: IO ()
 main = do
-    fileLoc <- Paths.getDataFileName "Hello.luna"
-    putStrLn fileLoc
-    putStrLn "Running interpreter benchmark."
+    testsDir <- Tests.directory
+    putStrLn $ "Executing benchmarks in " <> Path.toFilePath testsDir
     pure ()
 

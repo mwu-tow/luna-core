@@ -51,7 +51,12 @@ benchmarks:
             - -with-rtsopts=-T
         dependencies:
             - base
+            - directory
+            - filepath
             - luna-benchmark
+            - luna-exception
+            - template-haskell
+            - path
             - prologue
 
 
