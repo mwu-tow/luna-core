@@ -23,8 +23,10 @@ library:
         - layered-state
         - lens
         - lens-utils
+        - mtl
         - perf
         - prologue
+        - transformers
         - weigh
         - yaml
 

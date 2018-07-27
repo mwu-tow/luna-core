@@ -7,14 +7,15 @@ import qualified Perf                        as Perf
 import qualified Weigh                       as Weigh
 import qualified Criterion                   as Criterion
 
-import Data.Map.Strict           (Map)
-import Luna.Benchmark.Statistics (Statistics)
+import Control.Monad.State.Layered (StateT)
+import Data.Map.Strict             (Map)
+import Luna.Benchmark.Statistics   (Statistics)
 
 
 
------------------------------
+------------------------
 -- === BenchState === --
------------------------------
+------------------------
 
 -- === Definition === --
 
@@ -35,13 +36,23 @@ instance Default BenchState where
 
 
 --------------------
--- === MonadBench === --
+-- === BenchT === --
 --------------------
 
 -- === Definition === --
 
--- TODO [AA] Need to make this a Monad Transformer
-type MonadBench m = (MonadIO m, State.Monad BenchState m)
+type BenchT m a = StateT BenchState m a
+
+type Bench a = BenchT Identity a
+
+class (Monad m, MonadIO m, State.Monad s m) => MonadBench s m | m -> s where
+    get :: m s
+    put :: s -> m ()
+
+
+-- === Instances === --
+
+-- TODO [AA] Appropriate instance here.
 
 
 
@@ -49,12 +60,12 @@ type MonadBench m = (MonadIO m, State.Monad BenchState m)
 -- === API === --
 -----------------
 
-time :: forall a m . MonadBench m => a -> m a
+time :: forall a m . MonadBench BenchState m => a -> m a
 time = undefined
 
-ticks :: forall a m . MonadBench m => a -> m a
+ticks :: forall a m . MonadBench BenchState m => a -> m a
 ticks = undefined
 
-mem :: forall a m . MonadBench m => a -> m a
+mem :: forall a m . MonadBench BenchState m => a -> m a
 mem = undefined
 
