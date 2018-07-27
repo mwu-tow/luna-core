@@ -6,6 +6,7 @@ import qualified Control.Monad.State.Layered as State
 import qualified Luna.Benchmark.Internal     as Internal
 import qualified Luna.Benchmark.Statistics   as Statistics
 
+import Data.Map.Strict           (Map)
 import Luna.Benchmark.Statistics (Statistics)
 
 
@@ -16,9 +17,12 @@ import Luna.Benchmark.Statistics (Statistics)
 
 -- === Definition === --
 
+type LocKey = Text
+
 newtype BenchState = BenchState
-    { _statsList :: [Statistics]
+    { _statsList :: Map LocKey Statistics
     } deriving (Eq, Generic, Ord, Show)
+makeLenses ''BenchState
 
 
 -- === Instances === --
@@ -34,7 +38,6 @@ instance Default BenchState where
 
 -- === Definition === --
 
--- TODO [AA] Layered State here
 -- TODO [AA] Need to make this a Monad Transformer
 type MonadBench m = (MonadIO m, State.Monad BenchState m)
 

@@ -18,6 +18,7 @@ library:
     dependencies:
         - base
         - call-stack
+        - containers
         - criterion
         - layered-state
         - lens

@@ -39,6 +39,22 @@ executables:
             - luna-shell
             - prologue
 
+benchmarks:
+    interpreter-benchmark:
+        main: Main.hs
+        source-dirs:
+            - test/bench
+        ghc-options:
+            - -rtsopts
+            - -threaded
+            - -with-rtsopts=-N
+            - -with-rtsopts=-T
+        dependencies:
+            - base
+            - luna-benchmark
+            - prologue
+
+
 default-extensions:
     - AllowAmbiguousTypes
     - ApplicativeDo
