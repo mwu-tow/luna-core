@@ -22,9 +22,32 @@ statsEx1 = def @Statistics
 statsEx1Yaml :: ByteString
 statsEx1Yaml = [qqStr|
 location-name: ''
-raw-mem: []
-raw-ticks: []
-raw-times: []
+location-info:
+  src-loc-file: ''
+  src-loc-start-col: 0
+  src-loc-end-line: 0
+  src-loc-package: ''
+  src-loc-module: ''
+  src-loc-end-col: 0
+  src-loc-start-line: 0
+tick-info:
+  std-ticks: 0
+  min-ticks: 0
+  max-ticks: 0
+  tick-counts: []
+  avg-ticks: 0
+time-info:
+  max-time: 0
+  avg-time: 0
+  std-time: 0
+  min-time: 0
+  times: []
+mem-info:
+  min-mem: 0
+  mem-vals: []
+  std-mem: 0
+  max-mem: 0
+  avg-mem: 0
 |]
 
 statsList :: [Statistics]
@@ -33,17 +56,86 @@ statsList = [ def @Statistics, def @Statistics, def @Statistics ]
 statsListYaml :: ByteString
 statsListYaml = [qqStr|
 - location-name: ''
-  raw-mem: []
-  raw-ticks: []
-  raw-times: []
+  location-info:
+    src-loc-file: ''
+    src-loc-start-col: 0
+    src-loc-end-line: 0
+    src-loc-package: ''
+    src-loc-module: ''
+    src-loc-end-col: 0
+    src-loc-start-line: 0
+  tick-info:
+    std-ticks: 0
+    min-ticks: 0
+    max-ticks: 0
+    tick-counts: []
+    avg-ticks: 0
+  time-info:
+    max-time: 0
+    avg-time: 0
+    std-time: 0
+    min-time: 0
+    times: []
+  mem-info:
+    min-mem: 0
+    mem-vals: []
+    std-mem: 0
+    max-mem: 0
+    avg-mem: 0
 - location-name: ''
-  raw-mem: []
-  raw-ticks: []
-  raw-times: []
+  location-info:
+    src-loc-file: ''
+    src-loc-start-col: 0
+    src-loc-end-line: 0
+    src-loc-package: ''
+    src-loc-module: ''
+    src-loc-end-col: 0
+    src-loc-start-line: 0
+  tick-info:
+    std-ticks: 0
+    min-ticks: 0
+    max-ticks: 0
+    tick-counts: []
+    avg-ticks: 0
+  time-info:
+    max-time: 0
+    avg-time: 0
+    std-time: 0
+    min-time: 0
+    times: []
+  mem-info:
+    min-mem: 0
+    mem-vals: []
+    std-mem: 0
+    max-mem: 0
+    avg-mem: 0
 - location-name: ''
-  raw-mem: []
-  raw-ticks: []
-  raw-times: []
+  location-info:
+    src-loc-file: ''
+    src-loc-start-col: 0
+    src-loc-end-line: 0
+    src-loc-package: ''
+    src-loc-module: ''
+    src-loc-end-col: 0
+    src-loc-start-line: 0
+  tick-info:
+    std-ticks: 0
+    min-ticks: 0
+    max-ticks: 0
+    tick-counts: []
+    avg-ticks: 0
+  time-info:
+    max-time: 0
+    avg-time: 0
+    std-time: 0
+    min-time: 0
+    times: []
+  mem-info:
+    min-mem: 0
+    mem-vals: []
+    std-mem: 0
+    max-mem: 0
+    avg-mem: 0
 |]
 
 

@@ -2,10 +2,11 @@ module Luna.Benchmark.Statistics where
 
 import Prologue
 
-import qualified Control.Lens.Aeson as Lens
-import qualified Data.Yaml          as Yaml
+import qualified Control.Lens.Aeson    as Lens
+import qualified Data.Yaml             as Yaml
+import qualified Luna.Benchmark.SrcLoc as SrcLoc
 
--- TODO [AA] Actually use the more detailed statistics.
+import Luna.Benchmark.SrcLoc (SrcLoc)
 
 
 
@@ -16,7 +17,7 @@ import qualified Data.Yaml          as Yaml
 -- === Definition === --
 
 data TimeStats = TimeStats
-    { _times   :: [Float]
+    { _times   :: [Float] -- in seconds
     , _maxTime :: Float
     , _minTime :: Float
     , _avgTime :: Float
@@ -46,7 +47,7 @@ instance Yaml.ToJSON TimeStats where
 -- === Definition === --
 
 data TickStats = TickStats
-    { _tickCounts :: [Float]
+    { _tickCounts :: [Integer] -- In ticks
     , _maxTicks   :: Float
     , _minTicks   :: Float
     , _avgTicks   :: Float
@@ -76,7 +77,7 @@ instance Yaml.ToJSON TickStats where
 -- === Definition === --
 
 data MemStats = MemStats
-    { _memVals :: [Float]
+    { _memVals :: [Integer] -- In Bytes
     , _maxMem  :: Float
     , _minMem  :: Float
     , _avgMem  :: Float
@@ -107,9 +108,10 @@ instance Yaml.ToJSON MemStats where
 
 data Statistics = Statistics
     { _locationName :: Text
-    , _rawTimes     :: [Float]   -- Seconds
-    , _rawTicks     :: [Integer] -- Ticks
-    , _rawMem       :: [Integer] -- Bytes TODO [AA] Fix this.
+    , _locationInfo :: SrcLoc
+    , _timeInfo     :: TimeStats
+    , _tickInfo     :: TickStats
+    , _memInfo      :: MemStats
     } deriving (Eq, Generic, Ord, Show)
 makeLenses ''Statistics
 
@@ -117,7 +119,7 @@ makeLenses ''Statistics
 -- === Instances === --
 
 instance Default Statistics where
-    def = Statistics def def def def
+    def = Statistics def def def def def
 
 instance Yaml.FromJSON Statistics where
     parseJSON = Lens.parseYamlStyle

@@ -1,8 +1,10 @@
-module Luna.Benchmark.SrcLoc (module Luna.Benchmark.SrcLoc, module X) where
+{-# OPTIONS_GHC -fno-warn-orphans #-}
+
+module Luna.Benchmark.SrcLoc
+    ( module Luna.Benchmark.SrcLoc
+    , CallStack.SrcLoc(SrcLoc) ) where
 
 import Prologue
-
-import qualified Data.CallStack as X (SrcLoc)
 
 import qualified Control.Lens.Aeson as Lens
 import qualified Data.CallStack     as CallStack
@@ -24,6 +26,7 @@ getLocation = snd $ fromJust (def @String, def @CallStack.SrcLoc)
 -- === Instances === --
 
 deriving instance Generic CallStack.SrcLoc
+deriving instance Ord CallStack.SrcLoc
 
 instance Default CallStack.SrcLoc where
     def = CallStack.SrcLoc def def def def def def def
