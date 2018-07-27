@@ -21,5 +21,5 @@ staticFileDir = $(do
     TH.litE $ TH.StringL absFilePath)
 
 testsRelPath :: FilePath
-testsRelPath = "../../../../../bench-test"
+testsRelPath = "../../../../bench-test"
 

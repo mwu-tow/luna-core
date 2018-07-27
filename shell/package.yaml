@@ -55,9 +55,10 @@ benchmarks:
             - filepath
             - luna-benchmark
             - luna-exception
-            - template-haskell
+            - luna-package
             - path
             - prologue
+            - template-haskell
 
 
 default-extensions:

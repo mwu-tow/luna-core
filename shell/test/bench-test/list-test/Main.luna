@@ -1,0 +1,13 @@
+import Std.Time
+
+def benchmark desc act:
+    t0 = Time.now
+    a = act
+    t1 = Time.now
+    print ("Benchmarking: " + desc + ": " + (t1.diff t0).toText)
+    a
+
+def main:
+    [125, 250, 500, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000].each n:
+        benchmark ("each for " + n.toText + " elements") (1.upto n . each i: i)
+
