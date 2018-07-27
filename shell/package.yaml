@@ -56,6 +56,7 @@ benchmarks:
             - luna-benchmark
             - luna-exception
             - luna-package
+            - luna-shell
             - path
             - prologue
             - template-haskell

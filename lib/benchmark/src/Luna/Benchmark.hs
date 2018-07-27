@@ -3,8 +3,9 @@ module Luna.Benchmark where
 import Prologue
 
 import qualified Control.Monad.State.Layered as State
-import qualified Luna.Benchmark.Internal     as Internal
-import qualified Luna.Benchmark.Statistics   as Statistics
+import qualified Perf                        as Perf
+import qualified Weigh                       as Weigh
+import qualified Criterion                   as Criterion
 
 import Data.Map.Strict           (Map)
 import Luna.Benchmark.Statistics (Statistics)
@@ -12,15 +13,16 @@ import Luna.Benchmark.Statistics (Statistics)
 
 
 -----------------------------
--- === Benchmark State === --
+-- === BenchState === --
 -----------------------------
 
 -- === Definition === --
 
 type LocKey = Text
 
-newtype BenchState = BenchState
-    { _statsList :: Map LocKey Statistics
+data BenchState = BenchState
+    { _currentTestName :: Text
+    , _statsList       :: Map LocKey Statistics
     } deriving (Eq, Generic, Ord, Show)
 makeLenses ''BenchState
 
@@ -28,7 +30,7 @@ makeLenses ''BenchState
 -- === Instances === --
 
 instance Default BenchState where
-    def = BenchState def
+    def = BenchState def def
 
 
 

@@ -2,11 +2,16 @@ module Main where
 
 import Prologue
 
-import qualified Luna.Interpreter.Tests as Tests
-import qualified Luna.Package           as Package
-import qualified Path                   as Path
-import qualified System.Directory       as Directory
-import qualified System.FilePath        as FilePath
+import qualified Control.Monad.Exception.IO as Exception
+import qualified Luna.Interpreter.Tests     as Tests
+import qualified Luna.Package               as Package
+import qualified Luna.Shell.Interpret       as Interpret
+import qualified Path                       as Path
+import qualified System.Directory           as Directory
+
+import Luna.Shell.Interpret (InterpreterMonad)
+import Path                 (Path, Abs, File, Dir, PathException)
+import System.FilePath      ((</>))
 
 
 
@@ -15,10 +20,39 @@ import qualified System.FilePath        as FilePath
 ------------------
 
 main :: IO ()
-main = do
+main = Exception.rethrowFromIO @PathException $ do
     testsDir <- Path.toFilePath <$> Tests.directory
     putStrLn $ "Executing benchmarks in " <> testsDir
-    benchmarkProjects <- Directory.listDirectory testsDir
-    print benchmarkProjects
-    pure ()
+
+    benchmarkDirs     <- Directory.listDirectory testsDir
+    benchmarkPackages <- sequence $ (Path.parseAbsDir <$> (testsDir </>))
+        <$> benchmarkDirs
+
+    for_ benchmarkPackages (\pkgName -> do
+        isPkg <- Package.isLunaPackage pkgName
+        if isPkg
+            then benchmarkPackage (convert $ Path.toFilePath pkgName) pkgName
+            else do
+                let testFile = pkgName Path.</> Tests.standaloneFileName
+                isValid <- Directory.doesFileExist $ Path.toFilePath testFile
+                if isValid then
+                    benchmarkFile (convert $ Path.toFilePath pkgName) testFile
+                else putStrLn $ "File " <> Path.toFilePath testFile
+                        <> " does not exist.")
+
+
+
+-----------------
+-- === API === --
+-----------------
+
+benchmarkFile :: InterpreterMonad m => Text -> Path Abs File -> m ()
+benchmarkFile name file = do
+    putStrLn . convert $ "Benchmarking " <> name
+    Interpret.file file
+
+benchmarkPackage :: InterpreterMonad m => Text -> Path Abs Dir -> m ()
+benchmarkPackage name pkg = do
+    putStrLn . convert $ "Benchmarking " <> name
+    Interpret.package pkg
 

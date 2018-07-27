@@ -9,7 +9,7 @@ import qualified Path                            as Path
 import qualified System.Directory                as Directory
 
 import Control.Monad.Exception (MonadException)
-import Path                    (Path, Abs, Dir, PathException)
+import Path                    (Path, Abs, Dir, Rel, File, PathException)
 import System.FilePath         (FilePath, (</>))
 
 
@@ -23,6 +23,9 @@ rawDir = $(do
     canPath <- TH.runIO . Directory.canonicalizePath
         $ Internal.staticFileDir </> Internal.testsRelPath
     TH.litE $ TH.StringL canPath)
+
+standaloneFileName :: Path Rel File
+standaloneFileName = $(Path.mkRelFile "Main.luna")
 
 -----------------
 -- === API === --
