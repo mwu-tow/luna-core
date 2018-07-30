@@ -1,4 +1,4 @@
-module Luna.Interpreter.Tests where
+module Luna.Interpreter.Test where
 
 import Prologue
 

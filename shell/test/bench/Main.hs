@@ -3,7 +3,7 @@ module Main where
 import Prologue
 
 import qualified Control.Monad.Exception.IO as Exception
-import qualified Luna.Interpreter.Tests     as Tests
+import qualified Luna.Interpreter.Test      as Test
 import qualified Luna.Package               as Package
 import qualified Luna.Shell.Interpret       as Interpret
 import qualified Path                       as Path
@@ -21,7 +21,7 @@ import System.FilePath      ((</>))
 
 main :: IO ()
 main = Exception.rethrowFromIO @PathException $ do
-    testsDir <- Path.toFilePath <$> Tests.directory
+    testsDir <- Path.toFilePath <$> Test.directory
     putStrLn $ "Executing benchmarks in " <> testsDir
 
     benchmarkDirs     <- Directory.listDirectory testsDir
@@ -33,7 +33,7 @@ main = Exception.rethrowFromIO @PathException $ do
         if isPkg
             then benchmarkPackage (convert $ Path.toFilePath pkgName) pkgName
             else do
-                let testFile = pkgName Path.</> Tests.standaloneFileName
+                let testFile = pkgName Path.</> Test.standaloneFileName
                 isValid <- Directory.doesFileExist $ Path.toFilePath testFile
                 if isValid then
                     benchmarkFile (convert $ Path.toFilePath pkgName) testFile

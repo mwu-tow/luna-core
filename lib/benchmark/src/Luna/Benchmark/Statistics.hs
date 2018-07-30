@@ -4,7 +4,6 @@ import Prologue
 
 import qualified Control.Lens.Aeson    as Lens
 import qualified Data.Yaml             as Yaml
-import qualified Luna.Benchmark.SrcLoc as SrcLoc
 
 import Luna.Benchmark.SrcLoc (SrcLoc)
 

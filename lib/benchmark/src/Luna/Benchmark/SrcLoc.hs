@@ -18,8 +18,8 @@ import qualified Data.Yaml          as Yaml
 
 -- === API === --
 
-getLocation :: CallStack.HasCallStack => CallStack.SrcLoc
-getLocation = snd $ fromJust (def @String, def @CallStack.SrcLoc)
+get :: CallStack.HasCallStack => CallStack.SrcLoc
+get = snd $ fromJust (def @String, def @CallStack.SrcLoc)
     $ last CallStack.callStack
 
 

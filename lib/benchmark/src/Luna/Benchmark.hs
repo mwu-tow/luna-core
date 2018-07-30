@@ -3,6 +3,7 @@ module Luna.Benchmark where
 import Prologue
 
 import qualified Control.Monad.State.Layered as State
+import qualified Luna.Benchmark.SrcLoc       as SrcLoc
 import qualified Perf                        as Perf
 import qualified Weigh                       as Weigh
 import qualified Criterion                   as Criterion
@@ -45,14 +46,10 @@ type BenchT m a = StateT BenchState m a
 
 type Bench a = BenchT Identity a
 
-class (Monad m, MonadIO m, State.Monad s m) => MonadBench s m | m -> s where
-    get :: m s
-    put :: s -> m ()
+type MonadBench s m = (Monad m, MonadIO m, State.Monad s m)
 
 
--- === Instances === --
-
--- TODO [AA] Appropriate instance here.
+-- === API === --
 
 
 
