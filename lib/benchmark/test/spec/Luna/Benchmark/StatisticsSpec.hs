@@ -2,12 +2,9 @@ module Luna.Benchmark.StatisticsSpec where
 
 import Prologue
 
-import qualified Luna.Benchmark.Statistics as Statistics
-
 import Data.ByteString           ( ByteString )
-import Luna.Benchmark.Statistics ( Statistics(Statistics) )
-import Luna.YamlUtils.Test       ( shouldDecodeAs, shouldGenerate
-                                 , shouldNotDecode )
+import Luna.Benchmark.Statistics ( Statistics )
+import Luna.YamlUtils.Test       ( shouldDecodeAs, shouldGenerate )
 import Test.Hspec                ( Spec, describe, it )
 
 
