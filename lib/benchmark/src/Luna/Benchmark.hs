@@ -4,6 +4,7 @@ import Prologue
 
 import qualified Control.Monad.State.Layered as State
 import qualified Luna.Benchmark.Config       as Config
+import qualified Luna.Benchmark.Output       as Output
 import qualified Luna.Benchmark.SrcLoc       as SrcLoc
 import qualified Perf.Cycle                  as Perf
 import qualified Weigh                       as Weigh
@@ -65,7 +66,7 @@ benchWith cfg comp = do
 
     -- Evaluate the benchmark
     let initState = (def @BenchState) & benchConfig .~ cfg
-    ret@(res, finalState) <- State.runT comp initState
+    ret@(_, finalState) <- State.runT comp initState
 
     -- Cleanup and post-processing of results
     pure ret
@@ -84,9 +85,14 @@ test = tick "Test" id (1 :: Int)
 
 tick :: forall a b m . (NFData a, MonadBench m) => Text -> (b -> a) -> b -> m a
 tick label f b = do
-    liftIO . void $ Perf.warmup 100
-    st <- State.get @BenchState
-    pure $ f b
+    numTests <- (^. (benchConfig . Config.numRuns)) <$> State.get @BenchState
+
+    ([cycles], result) <- liftIO $ Perf.ticks numTests f b
+
+    -- TODO [AA] Merge the data.
+    -- TODO [AA] Need to handle the case where there is no data properly.
+
+    pure result
 
 -- time :: forall a m . (NFData a, MonadBench BenchState m) => a -> m a
 -- time = undefined

@@ -2,7 +2,9 @@ module Luna.Benchmark.Config where
 
 import Prologue
 
-import System.FilePath (FilePath)
+import qualified Path as Path
+
+import Path (Path, Rel, Dir)
 
 
 
@@ -11,8 +13,8 @@ import System.FilePath (FilePath)
 --------------------
 
 data Config = Config
-    { _numRuns :: Int
-    , _outputPath :: FilePath
+    { _numRuns    :: Int
+    , _outputPath :: Path Rel Dir
     } deriving (Eq, Generic, Ord, Show)
 makeLenses ''Config
 
@@ -20,5 +22,5 @@ makeLenses ''Config
 -- === Instances === --
 
 instance Default Config where
-    def = Config 5 "."
+    def = Config 5 $(Path.mkRelDir "./bench-results")
 

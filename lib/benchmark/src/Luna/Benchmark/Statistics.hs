@@ -2,10 +2,12 @@ module Luna.Benchmark.Statistics where
 
 import Prologue
 
-import qualified Control.Lens.Aeson    as Lens
-import qualified Data.Yaml             as Yaml
+import qualified Control.Lens.Aeson                 as Lens
+import qualified Data.Yaml                          as Yaml
+import qualified Luna.Benchmark.Statistics.Internal as Internal
 
 import Luna.Benchmark.SrcLoc (SrcLoc)
+import Perf                  (Cycle)
 
 
 
@@ -16,11 +18,11 @@ import Luna.Benchmark.SrcLoc (SrcLoc)
 -- === Definition === --
 
 data TimeStats = TimeStats
-    { _times   :: [Float] -- in seconds
-    , _maxTime :: Float
-    , _minTime :: Float
-    , _avgTime :: Float
-    , _stdTime :: Float
+    { _times   :: [Double] -- in seconds
+    , _maxTime :: Double
+    , _minTime :: Double
+    , _avgTime :: Double
+    , _stdTime :: Double
     } deriving (Eq, Generic, Ord, Show)
 makeLenses ''TimeStats
 
@@ -37,6 +39,10 @@ instance Yaml.ToJSON TimeStats where
     toJSON     = Lens.toJSONYamlStyle
     toEncoding = Lens.toEncodingYamlStyle
 
+instance Semigroup TimeStats where
+    (TimeStats c1 max1 min1 avg1 std1) <> (TimeStats c2 max2 min2 avg2 std2)
+        = undefined
+
 
 
 -----------------------
@@ -46,11 +52,11 @@ instance Yaml.ToJSON TimeStats where
 -- === Definition === --
 
 data TickStats = TickStats
-    { _tickCounts :: [Integer] -- In ticks
-    , _maxTicks   :: Float
-    , _minTicks   :: Float
-    , _avgTicks   :: Float
-    , _stdTicks   :: Float
+    { _tickCounts :: [Cycle] -- In ticks
+    , _maxTicks   :: Cycle
+    , _minTicks   :: Cycle
+    , _avgTicks   :: Cycle
+    , _stdTicks   :: Cycle
     } deriving (Eq, Generic, Ord, Show)
 makeLenses ''TickStats
 
@@ -67,6 +73,10 @@ instance Yaml.ToJSON TickStats where
     toJSON     = Lens.toJSONYamlStyle
     toEncoding = Lens.toEncodingYamlStyle
 
+instance Semigroup TickStats where
+    (TickStats c1 max1 min1 avg1 std1) <> (TickStats c2 max2 min2 avg2 std2)
+        = undefined
+
 
 
 -----------------------
@@ -76,11 +86,11 @@ instance Yaml.ToJSON TickStats where
 -- === Definition === --
 
 data MemStats = MemStats
-    { _memVals :: [Integer] -- In Bytes
-    , _maxMem  :: Float
-    , _minMem  :: Float
-    , _avgMem  :: Float
-    , _stdMem  :: Float
+    { _memVals :: [Int64] -- In Bytes
+    , _maxMem  :: Int64
+    , _minMem  :: Int64
+    , _avgMem  :: Int64
+    , _stdMem  :: Int64
     } deriving (Eq, Generic, Ord, Show)
 makeLenses ''MemStats
 
@@ -96,6 +106,10 @@ instance Yaml.FromJSON MemStats where
 instance Yaml.ToJSON MemStats where
     toJSON     = Lens.toJSONYamlStyle
     toEncoding = Lens.toEncodingYamlStyle
+
+instance Semigroup MemStats where
+    (MemStats c1 max1 min1 avg1 std1) <> (MemStats c2 max2 min2 avg2 std2)
+        = undefined
 
 
 
@@ -129,4 +143,8 @@ instance Yaml.FromJSON Statistics where
 instance Yaml.ToJSON Statistics where
     toJSON     = Lens.toJSONYamlStyle
     toEncoding = Lens.toEncodingYamlStyle
+
+instance Semigroup Statistics where
+    (Statistics l1 i1 time1 tick1 mem1) <> (Statistics _ _ time2 tick2 mem2)
+        = Statistics l1 i1 (time1 <> time2) (tick1 <> tick2) (mem1 <> mem2)
 
