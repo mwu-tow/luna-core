@@ -65,8 +65,10 @@ benchWith cfg comp = do
 
     -- Evaluate the benchmark
     let initState = (def @BenchState) & benchConfig .~ cfg
-    State.runT comp initState
+    ret@(res, finalState) <- State.runT comp initState
 
+    -- Cleanup and post-processing of results
+    pure ret
 
 
 -----------------
