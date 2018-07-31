@@ -18,11 +18,11 @@ import Perf                  (Cycle)
 -- === Definition === --
 
 data TimeStats = TimeStats
-    { _times   :: [Double] -- in seconds
-    , _maxTime :: Double
-    , _minTime :: Double
-    , _avgTime :: Double
-    , _stdTime :: Double
+    { _times   :: {-# UNPACK #-} ![Double] -- in seconds
+    , _maxTime :: {-# UNPACK #-} !Double
+    , _minTime :: {-# UNPACK #-} !Double
+    , _avgTime :: {-# UNPACK #-} !Double
+    , _stdTime :: {-# UNPACK #-} !Double
     } deriving (Eq, Generic, Ord, Show)
 makeLenses ''TimeStats
 
@@ -42,6 +42,7 @@ instance Yaml.ToJSON TimeStats where
 instance Semigroup TimeStats where
     (TimeStats c1 max1 min1 avg1 std1) <> (TimeStats c2 max2 min2 avg2 std2)
         = undefined
+    {-# INLINE (<>) #-}
 
 
 
@@ -52,11 +53,11 @@ instance Semigroup TimeStats where
 -- === Definition === --
 
 data TickStats = TickStats
-    { _tickCounts :: [Cycle] -- In ticks
-    , _maxTicks   :: Cycle
-    , _minTicks   :: Cycle
-    , _avgTicks   :: Cycle
-    , _stdTicks   :: Cycle
+    { _tickCounts :: {-# UNPACK #-} ![Cycle] -- In ticks
+    , _maxTicks   :: {-# UNPACK #-} !Cycle
+    , _minTicks   :: {-# UNPACK #-} !Cycle
+    , _avgTicks   :: {-# UNPACK #-} !Cycle
+    , _stdTicks   :: {-# UNPACK #-} !Cycle
     } deriving (Eq, Generic, Ord, Show)
 makeLenses ''TickStats
 
@@ -76,6 +77,7 @@ instance Yaml.ToJSON TickStats where
 instance Semigroup TickStats where
     (TickStats c1 max1 min1 avg1 std1) <> (TickStats c2 max2 min2 avg2 std2)
         = undefined
+    {-# INLINE (<>) #-}
 
 
 
@@ -86,11 +88,11 @@ instance Semigroup TickStats where
 -- === Definition === --
 
 data MemStats = MemStats
-    { _memVals :: [Int64] -- In Bytes
-    , _maxMem  :: Int64
-    , _minMem  :: Int64
-    , _avgMem  :: Int64
-    , _stdMem  :: Int64
+    { _memVals :: {-# UNPACK #-} ![Int64] -- In Bytes
+    , _maxMem  :: {-# UNPACK #-} !Int64
+    , _minMem  :: {-# UNPACK #-} !Int64
+    , _avgMem  :: {-# UNPACK #-} !Int64
+    , _stdMem  :: {-# UNPACK #-} !Int64
     } deriving (Eq, Generic, Ord, Show)
 makeLenses ''MemStats
 
@@ -110,6 +112,7 @@ instance Yaml.ToJSON MemStats where
 instance Semigroup MemStats where
     (MemStats c1 max1 min1 avg1 std1) <> (MemStats c2 max2 min2 avg2 std2)
         = undefined
+    {-# INLINE (<>) #-}
 
 
 
@@ -120,11 +123,11 @@ instance Semigroup MemStats where
 -- === Definition === --
 
 data Statistics = Statistics
-    { _locationName :: Text
-    , _locationInfo :: SrcLoc
-    , _timeInfo     :: TimeStats
-    , _tickInfo     :: TickStats
-    , _memInfo      :: MemStats
+    { _locationName :: !Text
+    , _locationInfo :: !SrcLoc
+    , _timeInfo     :: !TimeStats
+    , _tickInfo     :: !TickStats
+    , _memInfo      :: !MemStats
     } deriving (Eq, Generic, Ord, Show)
 makeLenses ''Statistics
 
@@ -147,4 +150,5 @@ instance Yaml.ToJSON Statistics where
 instance Semigroup Statistics where
     (Statistics l1 i1 time1 tick1 mem1) <> (Statistics _ _ time2 tick2 mem2)
         = Statistics l1 i1 (time1 <> time2) (tick1 <> tick2) (mem1 <> mem2)
+    {-# INLINE (<>) #-}
 

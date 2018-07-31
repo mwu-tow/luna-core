@@ -13,8 +13,9 @@ import Path (Path, Rel, Dir)
 --------------------
 
 data Config = Config
-    { _numRuns    :: Int
-    , _outputPath :: Path Rel Dir
+    { _numRuns      :: !Int
+    , _outputPath   :: !(Path Rel Dir)
+    , _historyCount :: !Int
     } deriving (Eq, Generic, Ord, Show)
 makeLenses ''Config
 
@@ -22,5 +23,5 @@ makeLenses ''Config
 -- === Instances === --
 
 instance Default Config where
-    def = Config 5 $(Path.mkRelDir "./bench-results")
+    def = Config 5 $(Path.mkRelDir "./bench-results") 1
 
