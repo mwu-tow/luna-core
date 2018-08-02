@@ -40,10 +40,18 @@ instance Yaml.ToJSON TimeStats where
     toEncoding = Lens.toEncodingYamlStyle
 
 instance Semigroup TimeStats where
-    (TimeStats c1 max1 min1 avg1 std1) <> (TimeStats c2 max2 min2 avg2 std2)
-        = undefined
+    (TimeStats t1 max1 min1 _ _) <> (TimeStats t2 max2 min2 _ _)
+        = TimeStats times (max max1 max2) (min min1 min2) (Internal.meanF times)
+                (Internal.stddevF times) where times = t1 <> t2
     {-# INLINE (<>) #-}
 
+instance StyledShow Pretty TimeStats where
+    styledShow _ (TimeStats times max min avg stddev)
+        =  "Recorded Times: "     <> convert (show times)
+        <> "Max Time: "           <> convert (show max)
+        <> "Min Time: "           <> convert (show min)
+        <> "Mean Time: "          <> convert (show avg)
+        <> "Standard Deviation: " <> convert (show stddev)
 
 
 -----------------------
@@ -57,7 +65,7 @@ data TickStats = TickStats
     , _maxTicks   :: {-# UNPACK #-} !Cycle
     , _minTicks   :: {-# UNPACK #-} !Cycle
     , _avgTicks   :: {-# UNPACK #-} !Cycle
-    , _stdTicks   :: {-# UNPACK #-} !Cycle
+    , _stdTicks   :: {-# UNPACK #-} !Double
     } deriving (Eq, Generic, Ord, Show)
 makeLenses ''TickStats
 
@@ -75,9 +83,18 @@ instance Yaml.ToJSON TickStats where
     toEncoding = Lens.toEncodingYamlStyle
 
 instance Semigroup TickStats where
-    (TickStats c1 max1 min1 avg1 std1) <> (TickStats c2 max2 min2 avg2 std2)
-        = undefined
+    (TickStats t1 max1 min1 _ _) <> (TickStats t2 max2 min2 _ _)
+        = TickStats ticks (max max1 max2) (min min1 min2) (Internal.meanI ticks)
+            (Internal.stddevI ticks) where ticks = t1 <> t2
     {-# INLINE (<>) #-}
+
+instance StyledShow Pretty TickStats where
+    styledShow _ (TickStats times max min avg stddev)
+        =  "Recorded Ticks: "     <> convert (show times)
+        <> "Max Ticks: "          <> convert (show max)
+        <> "Min Ticks: "          <> convert (show min)
+        <> "Mean Ticks: "         <> convert (show avg)
+        <> "Standard Deviation: " <> convert (show stddev)
 
 
 
@@ -92,7 +109,7 @@ data MemStats = MemStats
     , _maxMem  :: {-# UNPACK #-} !Int64
     , _minMem  :: {-# UNPACK #-} !Int64
     , _avgMem  :: {-# UNPACK #-} !Int64
-    , _stdMem  :: {-# UNPACK #-} !Int64
+    , _stdMem  :: {-# UNPACK #-} !Double
     } deriving (Eq, Generic, Ord, Show)
 makeLenses ''MemStats
 
@@ -110,9 +127,18 @@ instance Yaml.ToJSON MemStats where
     toEncoding = Lens.toEncodingYamlStyle
 
 instance Semigroup MemStats where
-    (MemStats c1 max1 min1 avg1 std1) <> (MemStats c2 max2 min2 avg2 std2)
-        = undefined
+    (MemStats m1 max1 min1 _ _) <> (MemStats m2 max2 min2 _ _)
+        = MemStats mem (max max1 max2) (min min1 min2) (Internal.meanI mem)
+            (Internal.stddevI mem) where mem = m1 <> m2
     {-# INLINE (<>) #-}
+
+instance StyledShow Pretty MemStats where
+    styledShow _ (MemStats times max min avg stddev)
+        =  "Recorded Allocations: " <> convert (show times)
+        <> "Max Bytes: "            <> convert (show max)
+        <> "Min Bytes: "            <> convert (show min)
+        <> "Mean Bytes: "           <> convert (show avg)
+        <> "Standard Deviation: "   <> convert (show stddev)
 
 
 
@@ -134,6 +160,10 @@ makeLenses ''Statistics
 
 -- === API === --
 
+-- TODO [AA] Comparison functions with thresholds in IO
+compare :: MonadIO m => Statistics -> Statistics -> m ()
+compare _ _ = undefined
+
 
 -- === Instances === --
 
@@ -151,4 +181,8 @@ instance Semigroup Statistics where
     (Statistics l1 i1 time1 tick1 mem1) <> (Statistics _ _ time2 tick2 mem2)
         = Statistics l1 i1 (time1 <> time2) (tick1 <> tick2) (mem1 <> mem2)
     {-# INLINE (<>) #-}
+
+-- TODO [AA] Make this nice.
+instance StyledShow Pretty Statistics where
+    styledShow _ (Statistics name _ _ _ _) = name
 

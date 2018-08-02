@@ -13,9 +13,9 @@ import Path (Path, Rel, Dir)
 --------------------
 
 data Config = Config
-    { _numRuns      :: !Int
-    , _outputPath   :: !(Path Rel Dir)
-    , _historyCount :: !Int
+    { _numRuns      :: !Int            -- Num of runs to average
+    , _outputPath   :: !(Path Rel Dir) -- Output directory
+    , _historyCount :: !Int            -- Num of history items to compare with
     } deriving (Eq, Generic, Ord, Show)
 makeLenses ''Config
 

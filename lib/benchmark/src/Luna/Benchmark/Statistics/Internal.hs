@@ -18,11 +18,14 @@ meanF :: Floating a => [a] -> a
 meanF !xs = foldl' (+) 0 xs / List.genericLength xs
 {-# INLINE meanF #-}
 
-stddevI :: Integral a => [a] -> a
-stddevI !xs = let ys = fromIntegral <$> xs in undefined
+stddevI :: (Integral a, Floating b) => [a] -> b
+stddevI !xs = let ys = fromIntegral <$> xs in stddevF ys
 {-# INLINE stddevI #-}
 
 stddevF :: Floating a => [a] -> a
-stddevF !xs = undefined
+stddevF !xs = if length xs < 2 then 0 else sqrt $ sumOfSquares / (n - 1) where
+    n            = List.genericLength xs
+    xBar         = meanF xs
+    sumOfSquares = List.foldl1' (+) $ (\x -> (x - xBar) ** 2) <$> xs
 {-# INLINE stddevF #-}
 

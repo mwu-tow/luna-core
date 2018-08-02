@@ -47,6 +47,7 @@ benchWith cfg comp = do
     ret@(_, finalState) <- State.runT comp initState
 
     -- Cleanup and post-processing of results + Display
+    -- TODO [AA] Display using `layouting`
     pure ret
 {-# NOINLINE benchWith #-}
 
